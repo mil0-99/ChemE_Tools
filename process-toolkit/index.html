@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Process Toolkit — quick calcs for chemical process engineers</title>
+  <meta name="description" content="Browser-based estimation tools for chemical process engineers: pipe & pump sizing, control valves, PSV, compressors, heat exchangers, steam properties, flare and more — with unit conversion, industry-standard limit checks and references." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <button id="navtoggle" class="navtoggle" aria-label="Toggle tool list">☰</button>
+    <div class="brand">
+      <span class="brand-mark">⊞</span>
+      <span class="brand-name">Process Toolkit</span>
+    </div>
+    <div class="brand-tag">estimation tools for process engineers</div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <nav id="toolnav" class="toolnav"></nav>
+      <div class="sidebar-foot">
+        Estimation-grade. Verify against project standards before use.
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="tool-head">
+        <h1 id="toolname" class="tool-title">—</h1>
+        <p id="toolblurb" class="tool-blurb"></p>
+      </div>
+
+      <div class="panels">
+        <section class="panel inputs-panel">
+          <div class="panel-h"><span class="panel-h-num">01</span> Inputs</div>
+          <div id="toolform" class="toolform"></div>
+          <button id="calcbtn" class="calc-btn">Calculate</button>
+        </section>
+
+        <section class="panel results-panel">
+          <div class="panel-h"><span class="panel-h-num">02</span> Results</div>
+          <div id="results" class="results">
+            <div class="placeholder">Select a tool to begin.</div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- load order: core namespace, then engines, then tools, then UI -->
+  <script src="js/core.js"></script>
+  <script src="js/units.js"></script>
+  <script src="js/standards.js"></script>
+  <script src="js/fluids.js"></script>
+  <script src="js/steam.js"></script>
+  <script src="js/tools/basic.js"></script>
+  <script src="js/tools/hydraulics.js"></script>
+  <script src="js/tools/valves.js"></script>
+  <script src="js/tools/compressor.js"></script>
+  <script src="js/tools/heat-exchanger.js"></script>
+  <script src="js/tools/flare-noise.js"></script>
+  <script src="js/tools/steam-tool.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
