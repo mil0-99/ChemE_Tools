@@ -221,7 +221,7 @@
   }
 
   /* ---------- boot ---------- */
-  // Booted by the tool loader once all tool files have registered.
+  // Boot once the DOM and all (statically loaded) tool scripts are ready.
   PET.boot = function () {
     buildSidebar();
     document.getElementById("calcbtn").onclick = calculate;
@@ -229,4 +229,9 @@
     const t = document.getElementById("navtoggle");
     if (t) t.onclick = () => document.body.classList.toggle("nav-open");
   };
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", PET.boot);
+  } else {
+    PET.boot();
+  }
 })();

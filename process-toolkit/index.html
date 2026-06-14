@@ -51,15 +51,31 @@
     </main>
   </div>
 
-  <!-- load order: core namespace, then engines, then UI, then tools via manifest -->
+  <!-- engines (load first) -->
   <script src="js/core.js"></script>
   <script src="js/units.js"></script>
   <script src="js/standards.js"></script>
   <script src="js/fluids.js"></script>
   <script src="js/steam.js"></script>
+
+  <!-- ================= TOOLS =================
+       To add a tool: drop your file in js/tools/ and add ONE <script> line
+       in this block. It then appears in the sidebar under its `category`.
+       (Engines above and app.js below stay as-is.) -->
+  <script src="js/tools/basic.js"></script>            <!-- Unit Conversion, Pipe Sizing -->
+  <script src="js/tools/hydraulics.js"></script>       <!-- Pressure Loss, Pump Sizing -->
+  <script src="js/tools/two-phase.js"></script>        <!-- Two-Phase Line Sizing -->
+  <script src="js/tools/valves.js"></script>           <!-- Control Valve, PSV -->
+  <script src="js/tools/orifice.js"></script>          <!-- Orifice / Flow-meter Sizing -->
+  <script src="js/tools/compressor.js"></script>       <!-- Compressor Sizing -->
+  <script src="js/tools/heat-exchanger.js"></script>   <!-- HX Design, HX Rating -->
+  <script src="js/tools/flare-noise.js"></script>      <!-- Flare Stack, Noise -->
+  <script src="js/tools/steam-tool.js"></script>       <!-- Steam Properties -->
+  <script src="js/tools/tank-blanketing.js"></script>  <!-- Tank Blanketing / Venting -->
+  <script src="js/tools/vessel-thickness.js"></script> <!-- Vessel Wall Thickness -->
+  <!-- =============== END TOOLS =============== -->
+
+  <!-- UI engine (loads last, builds the page from whatever tools registered) -->
   <script src="js/app.js"></script>
-  <!-- tools are listed in js/tools/_manifest.js — add new tools there, not here -->
-  <script src="js/tools/_manifest.js"></script>
-  <script src="js/load-tools.js"></script>
 </body>
 </html>

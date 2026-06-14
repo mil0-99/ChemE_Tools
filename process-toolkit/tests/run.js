@@ -5,11 +5,12 @@ require("../js/units.js");
 require("../js/standards.js");
 require("../js/fluids.js");
 require("../js/steam.js");
-// load every tool listed in the manifest, in order (kept in sync automatically)
+// load every tool exactly as index.html does (parse its <script> tags), so the
+// tests always match what the browser loads — add a tool tag there, nothing here.
 const fs = require("fs"), path = require("path");
-const manifest = fs.readFileSync(path.join(__dirname, "../js/tools/_manifest.js"), "utf8");
-const arrBody = (manifest.match(/TOOL_FILES\s*=\s*\[([\s\S]*?)\]/) || [, ""])[1];
-const toolFiles = (arrBody.match(/"([\w-]+\.js)"/g) || []).map((s) => s.replace(/"/g, ""));
+const indexHtml = fs.readFileSync(path.join(__dirname, "../index.html"), "utf8");
+const toolFiles = (indexHtml.match(/js\/tools\/([\w-]+\.js)/g) || [])
+  .map((s) => s.replace("js/tools/", ""));
 toolFiles.forEach((f) => require("../js/tools/" + f));
 
 let pass = 0, fail = 0;

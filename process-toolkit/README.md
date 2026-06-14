@@ -62,15 +62,20 @@ to SI, runs the calc, and converts each output back to whatever unit you select.
 
 ### Adding a tool (the easy part)
 
-To grow the toolkit later you only touch the `js/tools/` folder:
+To grow the toolkit later you only touch the `js/tools/` folder and one block:
 
 1. Copy any existing tool file as a starting point, e.g. `js/tools/my-tool.js`,
    and write your `PET.registerTool({ id, name, category, blurb, inputs, compute })`.
-2. Add its filename to the list in **`js/tools/_manifest.js`**.
+2. Add one `<script src="js/tools/my-tool.js"></script>` line in the clearly
+   marked **TOOLS** block of `index.html`.
 
-That's it — `index.html` never changes, the new tool appears in the sidebar
-under its `category`, and `node tests/run.js` will load it automatically (the
-test harness reads the same manifest).
+The new tool then appears in the sidebar under its `category`, and
+`node tests/run.js` will load it automatically (the test harness reads the same
+list of tool tags from `index.html`, so the two never drift apart).
+
+> Note: tools load via plain `<script>` tags so the page works when opened
+> directly from disk (`file://`) as well as when served. Avoid dynamic script
+> injection for tools — browsers block it for local files.
 
 ```
 js/
@@ -79,11 +84,8 @@ js/
   standards.js       pipe schedules, API 526 orifices, NEMA motors, K-values, U & velocity tables
   fluids.js          Reynolds, Churchill friction factor, roughness
   steam.js           IAPWS-IF97 Regions 1/2/4
-  app.js             generic form + results UI (exposes PET.boot)
-  load-tools.js      loads the manifest's tools in order, then boots
-  tools/
-    _manifest.js     ← the one list you edit to add tools
-    *.js             one file per tool (registers via PET.registerTool)
+  app.js             generic form + results UI (boots on DOMContentLoaded)
+  tools/*.js         one file per tool (registers via PET.registerTool)
 ```
 
 ## Tests
