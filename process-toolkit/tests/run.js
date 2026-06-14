@@ -5,13 +5,12 @@ require("../js/units.js");
 require("../js/standards.js");
 require("../js/fluids.js");
 require("../js/steam.js");
-require("../js/tools/basic.js");
-require("../js/tools/hydraulics.js");
-require("../js/tools/valves.js");
-require("../js/tools/compressor.js");
-require("../js/tools/heat-exchanger.js");
-require("../js/tools/flare-noise.js");
-require("../js/tools/steam-tool.js");
+// load every tool listed in the manifest, in order (kept in sync automatically)
+const fs = require("fs"), path = require("path");
+const manifest = fs.readFileSync(path.join(__dirname, "../js/tools/_manifest.js"), "utf8");
+const arrBody = (manifest.match(/TOOL_FILES\s*=\s*\[([\s\S]*?)\]/) || [, ""])[1];
+const toolFiles = (arrBody.match(/"([\w-]+\.js)"/g) || []).map((s) => s.replace(/"/g, ""));
+toolFiles.forEach((f) => require("../js/tools/" + f));
 
 let pass = 0, fail = 0;
 function ok(name, cond, info) {
@@ -152,6 +151,55 @@ r = PET.calc["unit-conversion"]({ dim: "pressure", value: 1, from: "bar", to: "p
 close("unit tool bar→psi", r.outputs[0].value, 14.5038, 1e-4);
 r = PET.calc["steam-properties"]({ mode: "Saturation (from pressure)", P: 10e5, T: 0 });
 ok("steam tool returns Tsat", r.outputs.some((o) => o.label.indexOf("Saturation temp") === 0));
+
+console.log("TOOL: two-phase-line");
+r = PET.calc["two-phase-line"]({
+  W: 5, x: 0.3, rhoL: 800, rhoG: 12, sched: "40", limit: 10000, margin: 10,
+});
+const tpPipe = r.outputs.find((o) => o.label.indexOf("Recommended") === 0).value;
+ok("two-phase picks a real NPS", PET.standards.PIPE.some((p) => p.nps === tpPipe), tpPipe);
+const rhoM = r.outputs.find((o) => o.label.indexOf("Mixture density") === 0).value;
+// homogeneous: 1/(0.3/12 + 0.7/800) = 1/(0.025+0.000875)=38.65
+close("homogeneous mixture density", rhoM, 1 / (0.3 / 12 + 0.7 / 800), 1e-6);
+ok("two-phase has ρv² check", r.checks.some((c) => c.label.indexOf("ρv²") === 0));
+
+console.log("TOOL: orifice-sizing (size & rate are inverse)");
+r = PET.calc["orifice-sizing"]({
+  mode: "Size bore for target ΔP", basis: "Mass", Qm: 10, rho: 1000,
+  D: 0.1, dP: 25000, Cd: 0.61, eps: 1,
+});
+const bore = r.outputs.find((o) => o.label.indexOf("Required orifice bore") === 0).value;
+const beta = r.outputs.find((o) => o.label.indexOf("Beta ratio") === 0).value;
+ok("orifice bore < pipe ID", bore > 0 && bore < 0.1, bore);
+close("beta = bore/D", beta, bore / 0.1, 1e-6);
+// round-trip: feed bore back into rating mode, expect ~10 kg/s
+r = PET.calc["orifice-sizing"]({
+  mode: "Flow from bore & ΔP", basis: "Mass", Qm: 0, rho: 1000,
+  D: 0.1, dP: 25000, d: bore, Cd: 0.61, eps: 1,
+});
+const qmBack = r.outputs.find((o) => o.label === "Mass flow").value;
+close("orifice size/rate round-trip", qmBack, 10, 1e-3);
+
+console.log("TOOL: tank-blanketing");
+r = PET.calc["tank-blanketing"]({
+  Vtank: 100, pumpOut: U.toBase(50, "m3/h", "volflow"), pumpIn: U.toBase(50, "m3/h", "volflow"),
+  volatility: "Non-volatile (flash ≥ 60 °C)", Ri: 1,
+});
+const inBr = r.outputs.find((o) => o.label.indexOf("Total inbreathing") === 0).value * 3600; // m3/h
+// liquid in 50 + thermal 4*100^0.7 = 4*25.12=100.5 → ~150.5 m3/h
+close("inbreathing total", inBr, 50 + 4 * Math.pow(100, 0.7), 1e-3);
+
+console.log("TOOL: vessel-thickness (ASME VIII UG-27 + MAWP round-trip)");
+r = PET.calc["vessel-thickness"]({
+  comp: "Cylindrical shell", P: U.toBase(1000, "kPa", "pressure"), D: 1.5,
+  S: U.toBase(138, "MPa", "pressure"), E: 1.0, CA: 0.003,
+});
+const tReq = r.outputs.find((o) => o.label.indexOf("Required thickness (no CA)") === 0).value;
+// t = P R/(SE-0.6P) = 1e6*0.75/(138e6 - 0.6e6) = 750000/137.4e6 = 0.005459 m
+close("shell thickness UG-27", tReq, (1e6 * 0.75) / (138e6 - 0.6 * 1e6), 1e-6);
+const mawp = r.outputs.find((o) => o.label.indexOf("MAWP") === 0).value;
+close("MAWP back-calc ≈ design P", mawp, 1e6, 2e-2);
+ok("thin-wall check present", r.checks.some((c) => c.label.indexOf("Thin-wall") === 0));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

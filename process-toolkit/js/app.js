@@ -111,7 +111,7 @@
         controls.appendChild(num);
         if (inp.dim) {
           const usel = el("select", "control unit");
-          U.unitList(inp.dim).forEach((u) => {
+          (inp.units || U.unitList(inp.dim)).forEach((u) => {
             const op = el("option", null, u); op.value = u;
             if (formState[inp.key].unit === u) op.selected = true;
             usel.appendChild(op);
@@ -173,7 +173,7 @@
         valWrap.appendChild(el("span", "out-unit", " " + (unit || "")));
       } else {
         const usel = el("select", "control unit out-unit-sel");
-        U.unitList(o.dim).forEach((u) => {
+        (o.units || U.unitList(o.dim)).forEach((u) => {
           const op = el("option", null, u); op.value = u;
           if (u === unit) op.selected = true;
           usel.appendChild(op);
@@ -221,13 +221,12 @@
   }
 
   /* ---------- boot ---------- */
-  document.addEventListener("DOMContentLoaded", () => {
+  // Booted by the tool loader once all tool files have registered.
+  PET.boot = function () {
     buildSidebar();
     document.getElementById("calcbtn").onclick = calculate;
-    // open the first tool
     if (PET.tools.length) selectTool(PET.tools[0].id);
-    // mobile nav toggle
     const t = document.getElementById("navtoggle");
     if (t) t.onclick = () => document.body.classList.toggle("nav-open");
-  });
+  };
 })();

@@ -15,15 +15,19 @@ margins**, and cites its **references**.
 | Unit Conversion | 18 dimensions, offset-aware (temp & gauge pressure) | — |
 | Pipe Sizing | Velocity sizing → ASME B36.10 selection | Service velocity guideline; API RP 14E erosional limit |
 | Pressure Loss in a Pipe | Darcy–Weisbach + Churchill friction factor, fittings ΣK, elevation | Flow-regime flag |
+| Two-Phase Line Sizing | Homogeneous ρv² method → ASME pipe selection | ρv² screening limit; API RP 14E erosional |
 | Pump Sizing & Selection | Head, hydraulic/brake power, NEMA motor pick | NPSH margin; efficiency sanity |
+| Orifice / Flow-meter Sizing | ISO 5167 — size bore for ΔP or rate flow from bore | β-ratio validity (0.2–0.75) |
 | Control Valve Sizing | IEC 60534 liquid & gas Cv | Choked/flashing flow; 20–80 % travel band |
 | PSV / Relief Valve Sizing | API 520 vapor (critical) & liquid → API 526 orifice | Standard orifice letter selection |
+| Tank Blanketing / Venting | API 2000 liquid-movement + thermal estimate | In/out-breathing basis flags |
 | Compressor Sizing & Selection | Adiabatic head & power with auto-staging | Per-stage ratio & discharge-temperature limits |
 | Heat Exchanger Design | LMTD area, typical-U lookup, margin | Temperature-cross / F-factor flags |
 | Heat Exchanger Rating | ε-NTU outlet temps & duty | Effectiveness sanity |
 | Flare Stack Relief | API 521 tip Mach sizing, flame length, radiation distances | Exit-Mach criterion |
 | Noise Calculations | Screening-level valve & pipe ρv² indicators | dB(A) / vibration thresholds |
 | Steam Property Calculator | IAPWS-IF97 (Regions 1, 2 & 4) | Phase/region indicator |
+| Vessel Wall Thickness | ASME VIII Div 1 (UG-27 / UG-32) internal pressure | Thin-wall validity; MAWP back-calc |
 
 ## Run it locally
 
@@ -55,18 +59,31 @@ Each tool declares its inputs (with a dimension for unit handling) and a
 `compute()` that receives everything already converted to SI base units and
 returns outputs, limit-checks and references. The UI converts your input units
 to SI, runs the calc, and converts each output back to whatever unit you select.
-Adding a tool means writing one small file in `js/tools/` and listing it in
-`index.html` — see any existing tool for the pattern.
+
+### Adding a tool (the easy part)
+
+To grow the toolkit later you only touch the `js/tools/` folder:
+
+1. Copy any existing tool file as a starting point, e.g. `js/tools/my-tool.js`,
+   and write your `PET.registerTool({ id, name, category, blurb, inputs, compute })`.
+2. Add its filename to the list in **`js/tools/_manifest.js`**.
+
+That's it — `index.html` never changes, the new tool appears in the sidebar
+under its `category`, and `node tests/run.js` will load it automatically (the
+test harness reads the same manifest).
 
 ```
 js/
-  core.js        namespace, tool registry, number formatting
-  units.js       dimensional unit engine (scale + offset)
-  standards.js   pipe schedules, API 526 orifices, NEMA motors, K-values, U & velocity tables
-  fluids.js      Reynolds, Churchill friction factor, roughness
-  steam.js       IAPWS-IF97 Regions 1/2/4
-  tools/*.js     one file per tool (registers via PET.registerTool)
-  app.js         generic form + results UI
+  core.js            namespace, tool registry, number formatting
+  units.js           dimensional unit engine (scale + offset)
+  standards.js       pipe schedules, API 526 orifices, NEMA motors, K-values, U & velocity tables
+  fluids.js          Reynolds, Churchill friction factor, roughness
+  steam.js           IAPWS-IF97 Regions 1/2/4
+  app.js             generic form + results UI (exposes PET.boot)
+  load-tools.js      loads the manifest's tools in order, then boots
+  tools/
+    _manifest.js     ← the one list you edit to add tools
+    *.js             one file per tool (registers via PET.registerTool)
 ```
 
 ## Tests
@@ -89,10 +106,11 @@ licensor data and the governing codes before issuing anything.
 
 ## References
 
-ASME B36.10M · API RP 14E · API 520 / 521 / 526 / 537 · API 610 / 617 / 618 ·
-IEC 60534-2-1 / 60534-8-3 · NEMA MG-1 · TEMA · GPSA Engineering Data Book ·
+ASME B36.10M · ASME BPVC Section VIII Div 1 & Section II-D · API RP 14E ·
+API 520 / 521 / 526 / 537 · API 610 / 617 / 618 · API Std 2000 ·
+IEC 60534-2-1 / 60534-8-3 · ISO 5167 · NEMA MG-1 · TEMA · GPSA Engineering Data Book ·
 Crane TP-410 · Perry's Chemical Engineers' Handbook · Coulson & Richardson Vol. 6 ·
-Kays & London · IAPWS-IF97 (R7-97) · NIST SP 811 · Energy Institute (AVIFF).
+Kays & London · IAPWS-IF97 (R7-97) · NIST SP 811 · Norsok P-001 / Energy Institute.
 
 ## License
 
