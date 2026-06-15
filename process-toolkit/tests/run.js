@@ -202,5 +202,27 @@ const mawp = r.outputs.find((o) => o.label.indexOf("MAWP") === 0).value;
 close("MAWP back-calc ≈ design P", mawp, 1e6, 2e-2);
 ok("thin-wall check present", r.checks.some((c) => c.label.indexOf("Thin-wall") === 0));
 
+console.log("TOOL: properties (constants + Antoine self-consistency)");
+// MW & ideal-gas density for water vapor at 100 kPa, 200°C
+r = PET.calc["properties"]({ sub: "Water", T: 473.15, P: 100000 });
+const mw = r.outputs.find((o) => o.label === "Molecular weight").value; // kg/mol
+close("water MW", mw * 1000, 18.015, 1e-3);
+const rhoIG = r.outputs.find((o) => o.label.indexOf("Ideal-gas density") === 0).value;
+close("ideal-gas density P·M/RT", rhoIG, (100000 * 0.018015) / (8.314462 * 473.15), 1e-6);
+// Antoine self-consistency: Pvap at each fluid's NBP must be ≈ 1 atm (760 mmHg)
+const fluidsWithAntoine = ["Water", "Ammonia", "Propane", "n-Butane", "Methanol", "Ethanol", "Acetone", "Benzene", "Toluene", "n-Pentane", "n-Hexane"];
+fluidsWithAntoine.forEach((name) => {
+  // read NBP from the tool, then evaluate Pvap at NBP
+  let rr = PET.calc["properties"]({ sub: name, T: 298.15, P: 101325 });
+  const nbpK = rr.outputs.find((o) => o.label === "Normal boiling point").value;
+  rr = PET.calc["properties"]({ sub: name, T: nbpK - 0.01, P: 101325 });
+  const pv = rr.outputs.find((o) => o.label.indexOf("Vapor pressure") === 0);
+  ok(`Antoine(${name}) → ~1 atm at NBP`, pv && Math.abs(pv.value - 101325) / 101325 < 0.02,
+    pv ? (pv.value / 1000).toFixed(1) + " kPa" : "no Pvap");
+});
+// supercritical fluid: methane at 25°C has no vapor pressure, flags supercritical
+r = PET.calc["properties"]({ sub: "Methane", T: 298.15, P: 101325 });
+ok("methane @25°C flagged supercritical", r.checks.some((c) => c.label === "Supercritical"));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

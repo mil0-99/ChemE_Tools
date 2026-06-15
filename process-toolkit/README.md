@@ -12,6 +12,7 @@ margins**, and cites its **references**.
 
 | Tool | Method | Realistic output / limit checks |
 |------|--------|-------------------------------|
+| Physical Property Database | Curated fluid constants + Antoine vapor pressure, reduced props, ideal-gas density | Antoine range / supercritical / phase flags |
 | Unit Conversion | 18 dimensions, offset-aware (temp & gauge pressure) | — |
 | Pipe Sizing | Velocity sizing → ASME B36.10 selection | Service velocity guideline; API RP 14E erosional limit |
 | Pressure Loss in a Pipe | Darcy–Weisbach + Churchill friction factor, fittings ΣK, elevation | Flow-regime flag |
@@ -112,7 +113,8 @@ ASME B36.10M · ASME BPVC Section VIII Div 1 & Section II-D · API RP 14E ·
 API 520 / 521 / 526 / 537 · API 610 / 617 / 618 · API Std 2000 ·
 IEC 60534-2-1 / 60534-8-3 · ISO 5167 · NEMA MG-1 · TEMA · GPSA Engineering Data Book ·
 Crane TP-410 · Perry's Chemical Engineers' Handbook · Coulson & Richardson Vol. 6 ·
-Kays & London · IAPWS-IF97 (R7-97) · NIST SP 811 · Norsok P-001 / Energy Institute.
+Kays & London · IAPWS-IF97 (R7-97) · NIST SP 811 · NIST Chemistry WebBook ·
+Poling/Prausnitz/O'Connell (Properties of Gases and Liquids) · Norsok P-001 / Energy Institute.
 
 ## License
 
