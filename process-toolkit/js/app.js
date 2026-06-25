@@ -1,6 +1,7 @@
 /* app.js — generic UI: builds the tool list, renders input forms with per-field
  * unit dropdowns, runs compute, and renders outputs (with output-unit dropdowns),
- * status chips, notes and references. Browser-only. */
+ * status chips, notes and references. Browser-only.
+ * Also handles "embed" tool type that fills the main panel with an iframe. */
 (function () {
   const PET = window.PET;
   const U = PET.units;
@@ -20,10 +21,11 @@
     conductivity: "W/(m·K)", molarmass: "g/mol",
   };
 
-  let current = null;       // active tool def
-  const formState = {};     // key -> {value, unit}
-  let lastResult = null;
-  const outUnitState = {};  // output index -> chosen unit
+  let current     = null;      // active tool def
+  const formState = {};        // key -> {value, unit}
+  let lastResult  = null;
+  const outUnitState = {};     // output index -> chosen unit
+  let isEmbedded  = false;     // true while an embed tool is active
 
   /* ---------- sidebar ---------- */
   function buildSidebar() {
@@ -41,14 +43,51 @@
     });
   }
 
+  /* ---------- embed tool helpers ---------- */
+
+  // Restore the standard two-panel layout after an embed tool.
+  function ensureNormalLayout() {
+    if (!isEmbedded) return;
+    isEmbedded = false;
+    document.querySelector(".layout").classList.remove("embed-active");
+    document.querySelector(".panels").innerHTML = `
+      <section class="panel inputs-panel">
+        <div class="panel-h"><span class="panel-h-num">01</span> Inputs</div>
+        <div id="toolform" class="toolform"></div>
+        <button id="calcbtn" class="calc-btn">Calculate</button>
+      </section>
+      <section class="panel results-panel">
+        <div class="panel-h"><span class="panel-h-num">02</span> Results</div>
+        <div id="results" class="results">
+          <div class="placeholder">Select a tool to begin.</div>
+        </div>
+      </section>`;
+    document.getElementById("calcbtn").onclick = calculate;
+  }
+
+  /* ---------- tool selection ---------- */
   function selectTool(id) {
+    ensureNormalLayout();   // restore panels if coming from an embed tool
+
     current = PET.tools.find((t) => t.id === id);
     Object.keys(formState).forEach((k) => delete formState[k]);
     Object.keys(outUnitState).forEach((k) => delete outUnitState[k]);
     lastResult = null;
     document.querySelectorAll(".nav-item").forEach((b) =>
       b.classList.toggle("active", b.dataset.id === id));
-    // seed defaults
+
+    // --- embed tool (iframe fills main area) ---
+    if (current.type === "embed") {
+      isEmbedded = true;
+      document.querySelector(".layout").classList.add("embed-active");
+      document.querySelector(".panels").innerHTML =
+        `<iframe class="embed-frame" src="${current.src}" title="${current.name}"></iframe>`;
+      document.getElementById("toolname").textContent = current.name;
+      document.getElementById("toolblurb").textContent = current.blurb;
+      return;
+    }
+
+    // --- normal tool ---
     current.inputs.forEach((inp) => {
       if (inp.type === "select") {
         const opts = typeof inp.options === "function" ? inp.options(currentValues()) : inp.options;
@@ -99,7 +138,6 @@
         });
         sel.onchange = () => {
           formState[inp.key].value = sel.value;
-          // dependent selects (e.g. unit lists tied to a dimension) must refresh
           renderForm();
         };
         controls.appendChild(sel);
@@ -221,7 +259,6 @@
   }
 
   /* ---------- boot ---------- */
-  // Boot once the DOM and all (statically loaded) tool scripts are ready.
   PET.boot = function () {
     buildSidebar();
     document.getElementById("calcbtn").onclick = calculate;

@@ -168,6 +168,34 @@ select.control { cursor: pointer; }
 .refs { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line-soft); font-size: 12px; color: var(--faint); font-family: var(--mono); line-height: 1.6; }
 .refs-h { color: var(--muted); font-weight: 600; }
 
+/* ---------- embed tool (full-panel iframe) ---------- */
+.layout.embed-active {
+  height: calc(100vh - 54px);
+  overflow: hidden;
+}
+.layout.embed-active .main {
+  padding: 0;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+}
+.layout.embed-active .tool-head { display: none; }
+.layout.embed-active .panels {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  gap: 0;
+}
+.embed-frame {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
 /* ---------- responsive ---------- */
 @media (max-width: 900px) {
   .panels { grid-template-columns: 1fr; }

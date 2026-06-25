@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Process Toolkit — quick calcs for chemical process engineers</title>
-  <meta name="description" content="Browser-based estimation tools for chemical process engineers: pipe & pump sizing, control valves, PSV, compressors, heat exchangers, steam properties, flare and more — with unit conversion, industry-standard limit checks and references." />
+  <title>ChemETools — quick calcs for chemical process engineers</title>
+  <meta name="description" content="Browser-based engineering tools for chemical process engineers: flowsheet simulation, pipe &amp; pump sizing, control valves, PSV, compressors, heat exchangers, steam properties, flare and more — with unit conversion, industry-standard limit checks and references." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -15,9 +15,9 @@
     <button id="navtoggle" class="navtoggle" aria-label="Toggle tool list">☰</button>
     <div class="brand">
       <span class="brand-mark">⊞</span>
-      <span class="brand-name">Process Toolkit</span>
+      <span class="brand-name">ChemETools</span>
     </div>
-    <div class="brand-tag">estimation tools for process engineers</div>
+    <div class="brand-tag">engineering tools for process engineers</div>
   </header>
 
   <div class="layout">
@@ -57,6 +57,7 @@
   <script src="js/standards.js"></script>
   <script src="js/fluids.js"></script>
   <script src="js/steam.js"></script>
+  <script src="js/components.js"></script>
 
   <!-- ================= TOOLS =================
        To add a tool: drop your file in js/tools/ and add ONE <script> line
@@ -74,6 +75,7 @@
   <script src="js/tools/steam-tool.js"></script>       <!-- Steam Properties -->
   <script src="js/tools/tank-blanketing.js"></script>  <!-- Tank Blanketing / Venting -->
   <script src="js/tools/vessel-thickness.js"></script> <!-- Vessel Wall Thickness -->
+  <script src="js/tools/flowsheet.js"></script>        <!-- Flowsheet Simulator -->
   <!-- =============== END TOOLS =============== -->
 
   <!-- UI engine (loads last, builds the page from whatever tools registered) -->

@@ -1,0 +1,1948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flowsheet Simulator — ChemETools</title>
+<style>
+  :root{
+    --ink:#10201c;        /* deep pine */
+    --paper:#f3efe6;      /* warm engineering paper */
+    --grid:#dcd6c6;
+    --line:#2a4a40;       /* pipe green */
+    --steam:#c0522a;      /* hot stream / accent */
+    --cool:#3a6ea5;       /* cold / utility */
+    --panel:#fbfaf5;
+    --panel2:#ece7da;
+    --edge:#cbc4b2;
+    --muted:#6c7771;
+    --ok:#2f7d55;
+    --warn:#b4561f;
+    --node:#fffdf7;
+    --shadow:0 1px 0 #fff inset, 0 2px 6px rgba(20,40,30,.12);
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+    --sans:'Inter',-apple-system,system-ui,sans-serif;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap');
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:var(--sans);color:var(--ink);background:var(--paper)}
+  body{display:flex;flex-direction:column;overflow:hidden}
+
+  /* ---- top bar (slim title only) ---- */
+  header{
+    display:flex;align-items:baseline;gap:14px;padding:8px 18px;
+    background:var(--ink);color:var(--paper);border-bottom:3px solid var(--steam);
+    z-index:30;flex-shrink:0;
+  }
+  .brand{font-family:'Fraunces',serif;font-weight:600;font-size:18px;letter-spacing:.3px;display:flex;align-items:baseline;gap:9px}
+  .brand small{font-family:var(--mono);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#9fb3aa;font-weight:500}
+  .header-hint{font-family:var(--mono);font-size:10px;color:#7d8f88;margin-left:auto;letter-spacing:.5px}
+
+  /* ---- bottom toolbar ---- */
+  .toolbar{
+    display:flex;align-items:center;justify-content:space-between;gap:18px;padding:9px 16px;
+    background:var(--ink);border-top:3px solid var(--steam);z-index:30;flex-shrink:0;
+  }
+  .tb-group{display:flex;align-items:center;gap:8px}
+  .tb-label{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#9fb3aa}
+  .tb-label select{font-family:var(--mono);font-size:11px;background:#1c322c;color:var(--paper);border:1px solid #335048;border-radius:5px;padding:6px 8px;cursor:pointer}
+  .toolbar button{
+    font-family:var(--mono);font-size:11.5px;letter-spacing:.5px;text-transform:uppercase;
+    background:#1c322c;color:var(--paper);border:1px solid #335048;padding:7px 13px;border-radius:5px;cursor:pointer;
+    transition:.12s;
+  }
+  .toolbar button:hover{background:#274740;border-color:#4a6b61}
+  .toolbar button.run{background:var(--steam);border-color:var(--steam);color:#fff;font-weight:600}
+  .toolbar button.run:hover{background:#a4441f}
+  .toolbar button.ico{min-width:38px;font-size:15px;padding:5px 10px}
+  .toolbar button:disabled{opacity:.35;cursor:default}
+  .toolbar button:disabled:hover{background:#1c322c;border-color:#335048}
+
+  /* ---- layout ---- */
+  main{flex:1;display:flex;min-height:0}
+  .palette{
+    width:150px;background:var(--panel2);border-right:1px solid var(--edge);
+    overflow-y:auto;padding:10px 8px;flex-shrink:0;
+  }
+  .palette h3{font-family:var(--mono);font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin:12px 3px 5px}
+  .palette h3:first-child{margin-top:2px}
+  .unit-chip{
+    display:flex;align-items:center;gap:7px;background:var(--node);border:1px solid var(--edge);
+    border-radius:6px;padding:5px 7px;margin-bottom:4px;cursor:pointer;font-size:11px;font-weight:500;
+    box-shadow:var(--shadow);transition:.1s;user-select:none;
+  }
+  .unit-chip:hover{border-color:var(--line);transform:translateX(2px)}
+  .unit-chip.armed{border-color:var(--steam);background:#fbeee9;box-shadow:0 0 0 2px rgba(192,82,42,.2),var(--shadow)}
+  .unit-chip .chip-ico{width:22px;height:22px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .unit-chip .chip-ico svg{width:22px;height:22px}
+
+  /* ---- canvas ---- */
+  .canvas-wrap{flex:1;position:relative;overflow:hidden;background:
+    radial-gradient(circle at 1px 1px, var(--grid) 1px, transparent 0) 0 0/22px 22px,
+    var(--paper);}
+  #canvas{position:absolute;inset:0;}
+  .canvas-wrap.placing{cursor:copy}
+  .node{
+    position:absolute;cursor:move;z-index:5;
+    filter:drop-shadow(0 2px 4px rgba(20,40,30,.14));
+  }
+  .node .shape{width:100%;height:100%;transition:transform .1s}
+  .node.sel .shape svg{filter:drop-shadow(0 0 0 transparent)}
+  .node.sel{outline:2.5px solid var(--steam);outline-offset:3px;border-radius:6px}
+  .node .nm{position:absolute;left:50%;top:calc(100% + 3px);transform:translateX(-50%);
+    font-size:11px;font-weight:600;text-align:center;line-height:1.15;white-space:nowrap;
+    color:var(--ink);pointer-events:none;text-shadow:0 1px 2px var(--paper),0 -1px 2px var(--paper)}
+  .node .nm .ty{display:block;font-family:var(--mono);font-size:8px;letter-spacing:.6px;
+    text-transform:uppercase;color:var(--muted);font-weight:500;margin-top:1px}
+  /* draw.io-style connection ports: faint until you hover the node, then clear */
+  .port{
+    position:absolute;width:13px;height:13px;border-radius:50%;
+    background:var(--cool);border:2px solid #fff;cursor:crosshair;z-index:8;
+    opacity:0;transition:opacity .12s,transform .1s;box-shadow:0 1px 3px rgba(0,0,0,.3);
+    transform:translate(-50%,-50%);
+  }
+  .node:hover .port,.node.sel .port{opacity:.75}
+  .port:hover{opacity:1!important;transform:translate(-50%,-50%) scale(1.45)}
+  .port.in{background:var(--ok)}
+  .port.tgt{opacity:1!important;transform:translate(-50%,-50%) scale(1.6);box-shadow:0 0 0 4px rgba(58,110,165,.35)}
+  .port.in.tgt{box-shadow:0 0 0 4px rgba(47,125,85,.35)}
+  .port-label{position:absolute;font-family:var(--mono);font-size:8.5px;color:var(--muted);
+    pointer-events:none;white-space:nowrap;opacity:0;transition:opacity .12s;z-index:8;
+    background:rgba(251,250,245,.9);padding:0 3px;border-radius:3px}
+  .node:hover .port-label,.node.sel .port-label{opacity:.85}
+  /* highlight a node as a valid drop target while wiring */
+  .node.wire-target .shape{transform:scale(1.04)}
+
+  header button:disabled{opacity:.35;cursor:default}
+  header button:disabled:hover{background:#1c322c;border-color:#335048}
+
+  svg.wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}
+  .wire{fill:none;stroke:var(--line);stroke-width:2.5;pointer-events:stroke;cursor:pointer}
+  .wire.hot{stroke:var(--steam)}
+  .wire.cold{stroke:var(--cool)}
+  .wire.sel{stroke-width:3.5}
+  .wire-label{font-family:var(--mono);font-size:10px;fill:var(--ink);paint-order:stroke;stroke:var(--paper);stroke-width:3px;stroke-linejoin:round}
+  .wire-hit{stroke:transparent;stroke-width:18;fill:none;pointer-events:stroke;cursor:pointer}
+  .waypoint{fill:var(--node);stroke:var(--steam);stroke-width:2;cursor:move;pointer-events:all}
+  .waypoint:hover{fill:var(--steam)}
+  .waypoint.ghost{fill:none;stroke:var(--muted);stroke-width:1.5;stroke-dasharray:3 3;cursor:copy;opacity:.5}
+  .waypoint.ghost:hover{opacity:1;stroke:var(--steam)}
+  .endpoint{fill:#fff;stroke:var(--steam);stroke-width:2.5;cursor:grab;pointer-events:all}
+  .endpoint:hover{fill:var(--steam)}
+  .segh{fill:var(--steam);opacity:.55;pointer-events:all}
+  .segh.h{cursor:ns-resize}
+  .segh.v{cursor:ew-resize}
+  .segh:hover{opacity:1}
+
+  /* ---- inspector ---- */
+  .inspector{
+    width:300px;background:var(--panel);border-left:1px solid var(--edge);
+    flex-shrink:0;overflow-y:auto;padding:0;
+  }
+  .insp-head{padding:14px 16px 10px;border-bottom:1px solid var(--edge);background:var(--panel2)}
+  .insp-head .ti{font-family:'Fraunces',serif;font-size:17px;font-weight:600}
+  .insp-head .su{font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-top:2px}
+  .insp-body{padding:14px 16px}
+  .field{margin-bottom:13px}
+  .field label{display:block;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+  .field input,.field select{
+    width:100%;padding:7px 9px;border:1px solid var(--edge);border-radius:6px;
+    font-family:var(--mono);font-size:12.5px;background:#fff;color:var(--ink);
+  }
+  .field input:focus,.field select:focus{outline:none;border-color:var(--line)}
+  .row2{display:flex;gap:8px}
+  .row2>.field{flex:1}
+  .comp-list{max-height:230px;overflow-y:auto;border:1px solid var(--edge);border-radius:6px;padding:7px 8px;background:#fff}
+  .comp-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;padding:2px 4px;border-radius:4px}
+  .comp-row.active{background:#eef5f0}
+  .comp-row .cn{flex:1;font-size:12px;font-weight:500}
+  .comp-row.active .cn{color:var(--ok);font-weight:600}
+  .comp-row input{width:78px;padding:5px 7px;border:1px solid var(--edge);border-radius:5px;font-family:var(--mono);font-size:12px}
+  .hint{font-size:11px;color:var(--muted);line-height:1.5;margin-top:-4px;margin-bottom:10px}
+  .empty-insp{padding:40px 22px;text-align:center;color:var(--muted);font-size:13px;line-height:1.6}
+  .empty-insp svg{margin-bottom:10px;opacity:.5}
+  .del-btn{width:100%;padding:8px;background:#fbeee9;border:1px solid #e3b8a6;color:var(--warn);
+    border-radius:6px;font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;margin-top:6px}
+  .del-btn:hover{background:#f6e0d6}
+
+  /* ---- results drawer ---- */
+  .drawer{
+    position:absolute;left:0;right:0;bottom:0;height:0;background:var(--ink);color:var(--paper);
+    z-index:20;transition:height .25s cubic-bezier(.4,0,.2,1);overflow:hidden;
+    box-shadow:0 -4px 20px rgba(0,0,0,.25);
+  }
+  .drawer.open{height:280px}
+  .drawer-tab{
+    position:absolute;top:-30px;right:20px;background:var(--ink);color:var(--paper);
+    padding:6px 16px;border-radius:7px 7px 0 0;font-family:var(--mono);font-size:11px;
+    letter-spacing:1px;text-transform:uppercase;cursor:pointer;border:1px solid #2a4a40;border-bottom:none;
+  }
+  .drawer-inner{padding:14px 18px;height:100%;overflow:auto}
+  .drawer-inner h4{font-family:'Fraunces',serif;font-size:15px;margin:0 0 10px}
+  table.streams{border-collapse:collapse;font-family:var(--mono);font-size:11.5px;width:100%}
+  table.streams th,table.streams td{border:1px solid #2f4f47;padding:5px 9px;text-align:right;white-space:nowrap}
+  table.streams th{background:#1a302a;text-align:center;font-weight:500;position:sticky;top:0}
+  table.streams td:first-child,table.streams th:first-child{text-align:left;background:#1a302a;position:sticky;left:0}
+  .status-bar{
+    position:absolute;left:0;bottom:0;font-family:var(--mono);font-size:11px;color:var(--muted);
+    padding:5px 16px;background:rgba(243,239,230,.9);border-top:1px solid var(--edge);border-right:1px solid var(--edge);
+    border-radius:0 7px 0 0;z-index:15;
+  }
+  .status-bar.err{color:var(--warn)}
+  .status-bar.ok{color:var(--ok)}
+  .toast{position:absolute;top:14px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--paper);
+    padding:9px 18px;border-radius:8px;font-size:13px;z-index:50;opacity:0;transition:.2s;pointer-events:none;border:1px solid var(--steam)}
+  .toast.show{opacity:1}
+  .tip{font-size:10.5px;color:var(--muted);font-family:var(--mono);position:absolute;left:206px;top:8px;z-index:8;background:rgba(251,250,245,.85);padding:3px 8px;border-radius:5px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">FlowSim <small>steady-state simulator</small></div>
+  <div class="header-hint">A process flowsheeting &amp; simulation sandbox</div>
+</header>
+
+<main>
+  <aside class="palette" id="palette"></aside>
+
+  <div class="canvas-wrap" id="cwrap">
+    <div class="tip">Place: click a palette block, then click the canvas · Connect: hover a block, drag a port (green = in, blue = out) to another block · Edit a stream: click it, then drag the square ends to re-attach or drag any segment to slide it · Routing menu sets right-angle (default) / curved / straight</div>
+    <svg class="wires" id="wires">
+      <defs>
+        <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L7,3 L0,6 Z" fill="var(--line)"/>
+        </marker>
+        <marker id="arrowH" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L7,3 L0,6 Z" fill="var(--steam)"/>
+        </marker>
+        <marker id="arrowC" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L7,3 L0,6 Z" fill="var(--cool)"/>
+        </marker>
+      </defs>
+    </svg>
+    <div id="canvas"></div>
+    <div class="status-bar" id="status">Idle · build a flowsheet, then Solve</div>
+    <div class="drawer" id="drawer">
+      <div class="drawer-tab" id="drawerTab">Stream Table ▴</div>
+      <div class="drawer-inner" id="drawerInner"></div>
+    </div>
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <aside class="inspector" id="inspector">
+    <div class="empty-insp">
+      <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17.5h7M17.5 14v7"/></svg>
+      <div>Select a block to edit its specifications, or a feed to set composition and conditions.</div>
+    </div>
+  </aside>
+</main>
+
+<footer class="toolbar">
+  <div class="tb-group">
+    <label class="tb-label">Property method
+      <select id="thermoSel">
+        <option value="nrtl">NRTL (activity)</option>
+        <option value="pr">Peng-Robinson (EOS)</option>
+        <option value="ideal">Ideal (Raoult)</option>
+      </select>
+    </label>
+    <label class="tb-label">Routing
+      <select id="routeSel">
+        <option value="ortho">Right-angle</option>
+        <option value="curve">Smooth</option>
+        <option value="straight">Straight</option>
+      </select>
+    </label>
+  </div>
+  <div class="tb-group">
+    <button id="btnUndo" title="Undo (Ctrl+Z)" class="ico">↶</button>
+    <button id="btnRedo" title="Redo (Ctrl+Shift+Z)" class="ico">↷</button>
+    <button id="btnSample">Column Example</button>
+    <button id="btnRecycle">Recycle Example</button>
+    <button id="btnClear">Clear</button>
+    <button class="run" id="btnRun">▶ Solve</button>
+  </div>
+</footer>
+
+<script src="js/components.js"></script>
+<script>
+/* ============================================================
+   FlowSim — steady-state sequential-modular process simulator
+   Engineering core: component material balances, ideal VLE flash
+   (Raoult + Antoine), energy balance on enthalpy basis, conversion
+   reactor, component splitter, recycle convergence by direct
+   substitution with tearing.
+   ============================================================ */
+
+// =====================================================================
+//  THERMODYNAMIC PROPERTY ENGINE
+//  Component database loaded from shared js/components.js (window.CET_COMPONENTS).
+//  NRTL interaction parameters from window.CET_NRTL.
+//  Air is excluded from VLE calculations (no Antoine data).
+// =====================================================================
+const COMPONENTS = window.CET_COMPONENTS;
+const COMP_LIST = Object.keys(COMPONENTS).filter(k => COMPONENTS[k].A !== null);
+const R = 8.314;        // J/mol/K
+const Rcal = 1.987;     // cal/mol/K
+
+// NRTL interaction parameters loaded from shared js/components.js
+const NRTL = window.CET_NRTL;
+function nrtlPair(ci,cj){
+  if(ci===cj)return {A12:0,A21:0,alpha:0.3};
+  if(NRTL[ci+'|'+cj])return NRTL[ci+'|'+cj];
+  if(NRTL[cj+'|'+ci]){const p=NRTL[cj+'|'+ci];return {A12:p.A21,A21:p.A12,alpha:p.alpha};}
+  return {A12:0,A21:0,alpha:0.3}; // unknown pair -> ideal
+}
+
+// Active model: 'ideal' | 'nrtl' | 'pr'
+let THERMO = 'nrtl';
+
+// Antoine vapor pressure (mmHg) at T(°C)
+function Psat(c,T){const p=COMPONENTS[c];return Math.pow(10, p.A - p.B/(p.C+T));}
+
+// --- Liquid activity coefficients gamma_i(x, T[°C]) via NRTL ---
+function activity(x, T_c){
+  const T=T_c+273.15, n=COMP_LIST.length;
+  if(THERMO==='ideal'||THERMO==='pr') return COMP_LIST.map(()=>1);
+  const tau=[],G=[];
+  for(let i=0;i<n;i++){tau[i]=[];G[i]=[];}
+  for(let i=0;i<n;i++)for(let j=0;j<n;j++){
+    const pij=nrtlPair(COMP_LIST[i],COMP_LIST[j]);
+    tau[i][j]= i===j?0: pij.A12/(Rcal*T);
+    G[i][j]= Math.exp(-pij.alpha*tau[i][j]);
+  }
+  const g=[];
+  for(let i=0;i<n;i++){
+    let num=0,den=0;
+    for(let j=0;j<n;j++){num+=tau[j][i]*G[j][i]*x[j];den+=G[j][i]*x[j];}
+    let s1=den>0?num/den:0, s2=0;
+    for(let j=0;j<n;j++){
+      let d2=0,n2=0;
+      for(let k=0;k<n;k++){d2+=G[k][j]*x[k];n2+=x[k]*tau[k][j]*G[k][j];}
+      if(d2>0)s2+=x[j]*G[i][j]/d2*(tau[i][j]-n2/d2);
+    }
+    g[i]=Math.exp(s1+s2);
+    if(!isFinite(g[i])||g[i]<=0)g[i]=1;
+  }
+  return g;
+}
+
+// --- Peng-Robinson cubic EOS: fugacity coefficients for a phase ---
+function cubicRoots(a,b,c,d){
+  b/=a;c/=a;d/=a;const p=c-b*b/3,q=2*b*b*b/27-b*c/3+d;
+  const disc=q*q/4+p*p*p/27;const out=[];
+  if(disc>0){const u=Math.cbrt(-q/2+Math.sqrt(disc)),v=Math.cbrt(-q/2-Math.sqrt(disc));out.push(u+v-b/3);}
+  else{const r=Math.sqrt(-p*p*p/27),phi=Math.acos(Math.max(-1,Math.min(1,-q/2/r)));const m=2*Math.cbrt(r);
+    for(let k=0;k<3;k++)out.push(m*Math.cos((phi+2*Math.PI*k)/3)-b/3);}
+  return out.filter(r=>isFinite(r));
+}
+function pengRobinson(y,Tk,Ppa,phase){
+  const n=COMP_LIST.length, ai=[],bi=[];
+  for(let i=0;i<n;i++){
+    const c=COMPONENTS[COMP_LIST[i]];
+    const k=0.37464+1.54226*c.w-0.26992*c.w*c.w;
+    const alpha=Math.pow(1+k*(1-Math.sqrt(Tk/c.Tc)),2);
+    ai[i]=0.45724*R*R*c.Tc*c.Tc/c.Pc*alpha;
+    bi[i]=0.07780*R*c.Tc/c.Pc;
+  }
+  let am=0,bm=0;const aij=[];
+  for(let i=0;i<n;i++){aij[i]=[];for(let j=0;j<n;j++){aij[i][j]=Math.sqrt(ai[i]*ai[j]);am+=y[i]*y[j]*aij[i][j];}}
+  for(let i=0;i<n;i++)bm+=y[i]*bi[i];
+  const A=am*Ppa/(R*R*Tk*Tk), B=bm*Ppa/(R*Tk);
+  const roots=cubicRoots(1,-(1-B),(A-3*B*B-2*B),-(A*B-B*B-B*B*B)).filter(r=>r>B);
+  if(!roots.length)return {Z:1,phi:y.map(()=>1)};
+  const Z=phase==='vap'?Math.max(...roots):Math.min(...roots);
+  const phi=[],sq2=Math.sqrt(2);
+  for(let i=0;i<n;i++){
+    let sumAij=0;for(let j=0;j<n;j++)sumAij+=y[j]*aij[i][j];
+    const term=bi[i]/bm*(Z-1)-Math.log(Math.max(1e-9,Z-B))
+      -A/(2*sq2*B)*(2*sumAij/am-bi[i]/bm)*Math.log((Z+(1+sq2)*B)/(Z+(1-sq2)*B));
+    phi[i]=Math.exp(term);
+  }
+  return {Z,phi};
+}
+
+// --- K-values y_i/x_i. gamma-phi for NRTL/ideal, phi-phi for PR ---
+function kValues(x,y,T_c,P_bar){
+  const Pmm=P_bar*750.062, Ppa=P_bar*1e5, Tk=T_c+273.15;
+  if(THERMO==='pr'){
+    const L=pengRobinson(x,Tk,Ppa,'liq'), V=pengRobinson(y,Tk,Ppa,'vap');
+    return COMP_LIST.map((c,i)=>L.phi[i]/V.phi[i]);
+  }
+  const g=activity(x,T_c);
+  return COMP_LIST.map((c,i)=>g[i]*Psat(c,T_c)/Pmm);
+}
+
+// ---------- Unit type registry ----------
+// Each unit declares named connection ports. A port has:
+//   id    – stable identifier used by edges and the solver
+//   label – shown in tooltip / inspector
+//   dir   – 'in' | 'out'
+//   side  – 'left'|'right'|'top'|'bottom'  (which edge of the block)
+//   pos   – 0..1 fractional position along that side
+// `w`/`h` set the block's pixel size so taller units (columns) look right.
+const UNIT_DEFS = {
+  feed:    {name:'Feed', cat:'Sources', w:96,h:62, glyph:gFeed, ports:[
+    {id:'out',label:'Outlet',dir:'out',side:'right',pos:0.5}]},
+  product: {name:'Product', cat:'Sinks', w:96,h:62, glyph:gProduct, ports:[
+    {id:'in',label:'Inlet',dir:'in',side:'left',pos:0.5}]},
+  mixer:   {name:'Mixer', cat:'Mixing', w:88,h:84, glyph:gMixer, ports:[
+    {id:'in1',label:'Inlet 1',dir:'in',side:'left',pos:0.22},
+    {id:'in2',label:'Inlet 2',dir:'in',side:'left',pos:0.5},
+    {id:'in3',label:'Inlet 3',dir:'in',side:'left',pos:0.78},
+    {id:'out',label:'Outlet',dir:'out',side:'right',pos:0.5}]},
+  splitter:{name:'Splitter (Tee)', cat:'Mixing', w:88,h:84, glyph:gSplit, ports:[
+    {id:'in',label:'Inlet',dir:'in',side:'left',pos:0.5},
+    {id:'out1',label:'Outlet 1',dir:'out',side:'right',pos:0.28},
+    {id:'out2',label:'Outlet 2',dir:'out',side:'right',pos:0.72}]},
+  heater:  {name:'Heater / Cooler', cat:'Thermal', w:92,h:72, glyph:gHeater, ports:[
+    {id:'in',label:'Inlet',dir:'in',side:'left',pos:0.5},
+    {id:'out',label:'Outlet',dir:'out',side:'right',pos:0.5}]},
+  heatex:  {name:'Heat Exchanger', cat:'Thermal', w:110,h:80, glyph:gHeatEx, ports:[
+    {id:'hot_in', label:'Hot In',   dir:'in',  side:'left',  pos:0.28},
+    {id:'hot_out',label:'Hot Out',  dir:'out', side:'right', pos:0.28},
+    {id:'cold_in',label:'Cold In',  dir:'in',  side:'left',  pos:0.72},
+    {id:'cold_out',label:'Cold Out',dir:'out', side:'right', pos:0.72}]},
+  pump:    {name:'Pump', cat:'Pressure', w:84,h:72, glyph:gPump, ports:[
+    {id:'in',label:'Suction',dir:'in',side:'left',pos:0.5},
+    {id:'out',label:'Discharge',dir:'out',side:'right',pos:0.5}]},
+  compressor:{name:'Compressor', cat:'Pressure', w:96,h:80, glyph:gCompressor, ports:[
+    {id:'in', label:'Suction',   dir:'in',  side:'left',  pos:0.5},
+    {id:'out',label:'Discharge', dir:'out', side:'right', pos:0.5}]},
+  valve:   {name:'Control Valve', cat:'Pressure', w:72,h:64, glyph:gValve, ports:[
+    {id:'in', label:'Inlet',  dir:'in',  side:'left',  pos:0.5},
+    {id:'out',label:'Outlet', dir:'out', side:'right', pos:0.5}]},
+  flash:   {name:'Flash Drum', cat:'Separation', w:84,h:96, glyph:gFlash, ports:[
+    {id:'feed',label:'Feed',dir:'in',side:'left',pos:0.5},
+    {id:'vap',label:'Vapor',dir:'out',side:'top',pos:0.5},
+    {id:'liq',label:'Liquid',dir:'out',side:'bottom',pos:0.5}]},
+  column:  {name:'Distillation Column', cat:'Separation', w:78,h:150, glyph:gColumn, ports:[
+    {id:'feed',label:'Feed',dir:'in',side:'left',pos:0.5},
+    {id:'dist',label:'Distillate',dir:'out',side:'top',pos:0.5},
+    {id:'btms',label:'Bottoms',dir:'out',side:'bottom',pos:0.5},
+    {id:'side',label:'Side draw',dir:'out',side:'right',pos:0.55}]},
+  compsep: {name:'Component Separator', cat:'Separation', w:84,h:96, glyph:gSep, ports:[
+    {id:'feed',label:'Feed',dir:'in',side:'left',pos:0.5},
+    {id:'top',label:'Top product',dir:'out',side:'top',pos:0.5},
+    {id:'bot',label:'Bottom product',dir:'out',side:'bottom',pos:0.5}]},
+  reactor: {name:'Conversion Reactor', cat:'Reaction', w:90,h:96, glyph:gReactor, ports:[
+    {id:'in',label:'Feed',dir:'in',side:'left',pos:0.5},
+    {id:'out',label:'Product',dir:'out',side:'right',pos:0.5}]},
+};
+// Convenience accessors over the new port schema (replace old in/out counts).
+function unitPorts(type){return UNIT_DEFS[type].ports;}
+function portDef(type,pid){return UNIT_DEFS[type].ports.find(p=>p.id===pid);}
+function outPorts(type){return UNIT_DEFS[type].ports.filter(p=>p.dir==='out');}
+function inPorts(type){return UNIT_DEFS[type].ports.filter(p=>p.dir==='in');}
+
+// ---------- Standard P&ID / unit-operation symbols ----------
+// Each fills its node via viewBox matched to the unit's w:h. The shape is the
+// block; ports attach at the perimeter. Conventions follow common PFD symbols.
+const SY='var(--line)', AC='var(--steam)', CL='var(--cool)', FILL='var(--node)';
+function svg(vb,inner){return `<svg viewBox="${vb}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block">${inner}</svg>`;}
+
+// Feed: pentagon source tag — standard PFD supply terminal
+function gFeed(){return svg('0 0 96 62',
+  `<polygon points="6,10 80,10 92,31 80,52 6,52" fill="${FILL}" stroke="${SY}" stroke-width="2"/>
+   <line x1="92" y1="31" x2="96" y2="31" stroke="${SY}" stroke-width="2"/>`);}
+// Product: pentagon sink tag — standard PFD destination terminal
+function gProduct(){return svg('0 0 96 62',
+  `<line x1="0" y1="31" x2="6" y2="31" stroke="${SY}" stroke-width="2"/>
+   <polygon points="6,10 80,10 92,31 80,52 6,52" fill="${FILL}" stroke="${SY}" stroke-width="2"/>
+   <circle cx="39" cy="31" r="5" fill="${SY}"/>`);}
+// Mixer: triangle pointing right — standard PFD mixing block (multi-inlet left face, outlet at tip)
+function gMixer(){return svg('0 0 88 84',
+  `<polygon points="2,6 2,78 86,42" fill="${FILL}" stroke="${SY}" stroke-width="2"/>`);}
+// Splitter: triangle pointing left — standard PFD split/tee block (inlet at tip, outlets on right face)
+function gSplit(){return svg('0 0 88 84',
+  `<polygon points="86,6 86,78 2,42" fill="${FILL}" stroke="${SY}" stroke-width="2"/>`);}
+// Heater/cooler: shell-and-tube symbol — rectangular shell with half-ellipse bonnets at each end
+function gHeater(){return svg('0 0 92 72',
+  `<line x1="0" y1="36" x2="6" y2="36" stroke="${SY}" stroke-width="2"/>
+   <path d="M20 20 A14 16 0 0 0 20 52" fill="${FILL}" stroke="${SY}" stroke-width="2"/>
+   <rect x="20" y="20" width="52" height="32" fill="${FILL}" stroke="${SY}" stroke-width="2"/>
+   <path d="M72 20 A14 16 0 0 1 72 52" fill="${FILL}" stroke="${SY}" stroke-width="2"/>
+   <path d="M30 29 q7-6 14 0 q7 6 14 0" stroke="${AC}" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.7"/>
+   <path d="M30 43 q7 6 14 0 q7-6 14 0" stroke="${CL}" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.7"/>
+   <line x1="86" y1="36" x2="92" y2="36" stroke="${SY}" stroke-width="2"/>`);}
+// 2-stream heat exchanger: wider shell with dual process stream nozzles, orange=hot blue=cold
+function gHeatEx(){return svg('0 0 110 80',
+  `<line x1="0" y1="22" x2="14" y2="22" stroke="${AC}" stroke-width="2"/>
+   <line x1="96" y1="22" x2="110" y2="22" stroke="${AC}" stroke-width="2"/>
+   <line x1="0" y1="58" x2="14" y2="58" stroke="${CL}" stroke-width="2"/>
+   <line x1="96" y1="58" x2="110" y2="58" stroke="${CL}" stroke-width="2"/>
+   <rect x="14" y="8" width="82" height="64" fill="${FILL}" stroke="${SY}" stroke-width="2"/>
+   <line x1="14" y1="40" x2="96" y2="40" stroke="${SY}" stroke-width="1.2" opacity="0.4"/>
+   <path d="M26 22 q9-7 18 0 q9 7 18 0 q9-7 18 0" stroke="${AC}" stroke-width="2" fill="none" stroke-linecap="round"/>
+   <path d="M26 58 q9 7 18 0 q9-7 18 0 q9 7 18 0" stroke="${CL}" stroke-width="2" fill="none" stroke-linecap="round"/>`);}
+// Centrifugal pump: circle casing with solid filled inscribed triangle pointing to discharge (ISA 5.1)
+function gPump(){return svg('0 0 84 72',
+  `<line x1="0" y1="36" x2="16" y2="36" stroke="${SY}" stroke-width="2"/>
+   <circle cx="42" cy="36" r="26" fill="${FILL}" stroke="${SY}" stroke-width="2"/>
+   <polygon points="22,22 22,50 62,36" fill="${SY}"/>
+   <line x1="68" y1="36" x2="84" y2="36" stroke="${SY}" stroke-width="2"/>`);}
+// Compressor: circle casing with hollow inscribed triangle — distinguished from pump (solid triangle)
+function gCompressor(){return svg('0 0 96 80',
+  `<line x1="0" y1="40" x2="18" y2="40" stroke="${SY}" stroke-width="2"/>
+   <circle cx="48" cy="40" r="30" fill="${FILL}" stroke="${SY}" stroke-width="2"/>
+   <polygon points="22,24 22,56 74,40" fill="none" stroke="${SY}" stroke-width="2.5"/>
+   <line x1="78" y1="40" x2="96" y2="40" stroke="${SY}" stroke-width="2"/>`);}
+// Control valve: bowtie body (two filled triangles meeting at vertex) + actuator stem and disk
+function gValve(){return svg('0 0 72 64',
+  `<line x1="0" y1="32" x2="8" y2="32" stroke="${SY}" stroke-width="2"/>
+   <polygon points="8,14 8,50 36,32" fill="${SY}"/>
+   <polygon points="64,14 64,50 36,32" fill="${SY}"/>
+   <line x1="64" y1="32" x2="72" y2="32" stroke="${SY}" stroke-width="2"/>
+   <line x1="36" y1="32" x2="36" y2="12" stroke="${SY}" stroke-width="2"/>
+   <circle cx="36" cy="6" r="6" fill="${FILL}" stroke="${SY}" stroke-width="2"/>`);}
+// Flash drum: vertical pressure vessel with ellipsoidal heads, nozzle stubs, and liquid level
+function gFlash(){return svg('0 0 84 96',
+  `<line x1="42" y1="0" x2="42" y2="10" stroke="${SY}" stroke-width="2"/>
+   <line x1="0" y1="48" x2="18" y2="48" stroke="${SY}" stroke-width="2"/>
+   <line x1="42" y1="86" x2="42" y2="96" stroke="${SY}" stroke-width="2"/>
+   <rect x="18" y="18" width="48" height="68" fill="${FILL}" stroke="${SY}" stroke-width="2"/>
+   <ellipse cx="42" cy="18" rx="24" ry="8" fill="${FILL}" stroke="${SY}" stroke-width="2"/>
+   <ellipse cx="42" cy="86" rx="24" ry="8" fill="${FILL}" stroke="${SY}" stroke-width="2"/>
+   <line x1="18" y1="60" x2="66" y2="60" stroke="${CL}" stroke-width="1.5" opacity="0.65"/>`);}
+// Distillation column: tall trayed tower with ellipsoidal heads and nozzle stubs
+function gColumn(){return svg('0 0 78 150',
+  `<line x1="39" y1="0" x2="39" y2="6" stroke="${SY}" stroke-width="2"/>
+   <line x1="39" y1="144" x2="39" y2="150" stroke="${SY}" stroke-width="2"/>
+   <line x1="0" y1="75" x2="15" y2="75" stroke="${SY}" stroke-width="2"/>
+   <line x1="63" y1="82" x2="78" y2="82" stroke="${SY}" stroke-width="2"/>
+   <rect x="15" y="14" width="48" height="122" fill="${FILL}" stroke="${SY}" stroke-width="2"/>
+   <ellipse cx="39" cy="14" rx="24" ry="8" fill="${FILL}" stroke="${SY}" stroke-width="2"/>
+   <ellipse cx="39" cy="136" rx="24" ry="8" fill="${FILL}" stroke="${SY}" stroke-width="2"/>
+   ${[32,50,68,86,104,122].map(y=>`<line x1="15" y1="${y}" x2="63" y2="${y}" stroke="${SY}" stroke-width="1.5" opacity="0.4"/>`).join('')}`);}
+// Component separator: rounded vessel with structured-packing chevron pattern
+function gSep(){return svg('0 0 84 96',
+  `<line x1="42" y1="0" x2="42" y2="14" stroke="${SY}" stroke-width="2"/>
+   <line x1="0" y1="48" x2="16" y2="48" stroke="${SY}" stroke-width="2"/>
+   <line x1="42" y1="82" x2="42" y2="96" stroke="${SY}" stroke-width="2"/>
+   <rect x="16" y="14" width="52" height="68" rx="6" fill="${FILL}" stroke="${SY}" stroke-width="2"/>
+   <path d="M22 36 l8-8 8 8 8-8 8 8" stroke="${SY}" stroke-width="1.5" fill="none" opacity="0.5" stroke-linecap="round"/>
+   <path d="M22 48 l8-8 8 8 8-8 8 8" stroke="${SY}" stroke-width="1.5" fill="none" opacity="0.5" stroke-linecap="round"/>
+   <path d="M22 60 l8-8 8 8 8-8 8 8" stroke="${SY}" stroke-width="1.5" fill="none" opacity="0.5" stroke-linecap="round"/>`);}
+// CSTR reactor: vertical stirred-tank vessel with motor, agitator shaft, and flat-blade impeller
+function gReactor(){return svg('0 0 90 96',
+  `<line x1="0" y1="48" x2="16" y2="48" stroke="${SY}" stroke-width="2"/>
+   <line x1="74" y1="48" x2="90" y2="48" stroke="${SY}" stroke-width="2"/>
+   <rect x="16" y="22" width="58" height="58" fill="${FILL}" stroke="${SY}" stroke-width="2"/>
+   <ellipse cx="45" cy="22" rx="29" ry="9" fill="${FILL}" stroke="${SY}" stroke-width="2"/>
+   <ellipse cx="45" cy="80" rx="29" ry="9" fill="${FILL}" stroke="${SY}" stroke-width="2"/>
+   <circle cx="45" cy="10" r="8" fill="${FILL}" stroke="${SY}" stroke-width="2"/>
+   <line x1="45" y1="18" x2="45" y2="58" stroke="${SY}" stroke-width="2"/>
+   <line x1="30" y1="58" x2="60" y2="58" stroke="${SY}" stroke-width="2.5"/>
+   <line x1="30" y1="52" x2="30" y2="64" stroke="${SY}" stroke-width="2"/>
+   <line x1="60" y1="52" x2="60" y2="64" stroke="${SY}" stroke-width="2"/>`);}
+
+// ============================================================
+//  STATE
+// ============================================================
+let nodes = {};   // id -> {id,type,x,y,name,spec}
+let edges = {};   // id -> {id,from,to,fromPort,toPort,name,solved:{...}}
+let nid=0, eid=0;
+let selected=null;     // node or edge id
+let selKind=null;      // 'node' | 'edge'
+
+const canvas=document.getElementById('canvas');
+const wires=document.getElementById('wires');
+const cwrap=document.getElementById('cwrap');
+
+// ---------- undo / redo history ----------
+// We snapshot the full diagram (nodes+edges, minus solved results which are
+// derived) before each mutation. Redo stack clears on any new action.
+let undoStack=[], redoStack=[];
+function snapshot(){
+  const clean={};
+  for(const id in edges){const e=edges[id];clean[id]={id:e.id,from:e.from,to:e.to,name:e.name,
+    waypoints:(e.waypoints||[]).map(w=>({x:w.x,y:w.y}))};}
+  return JSON.stringify({nodes,edges:clean,nid,eid});
+}
+function pushHistory(){
+  undoStack.push(snapshot());
+  if(undoStack.length>100)undoStack.shift();
+  redoStack.length=0;
+  updateUndoButtons();
+}
+function restore(snap){
+  const s=JSON.parse(snap);
+  nodes=s.nodes; edges=s.edges; nid=s.nid; eid=s.eid;
+  for(const id in edges){edges[id].solved=null; edges[id].waypoints=edges[id].waypoints||[];}
+  selected=null; selKind=null;
+  // rebuild DOM nodes
+  canvas.innerHTML='';
+  for(const id in nodes) renderNode(id);
+  drawWires(); renderInspector(); refreshSel();
+}
+function undo(){
+  if(!undoStack.length)return;
+  redoStack.push(snapshot());
+  restore(undoStack.pop());
+  updateUndoButtons(); status('Undo');
+}
+function redo(){
+  if(!redoStack.length)return;
+  undoStack.push(snapshot());
+  restore(redoStack.pop());
+  updateUndoButtons(); status('Redo');
+}
+function updateUndoButtons(){
+  const u=document.getElementById('btnUndo'), r=document.getElementById('btnRedo');
+  if(u)u.disabled=!undoStack.length;
+  if(r)r.disabled=!redoStack.length;
+}
+
+// ---------- default spec per unit ----------
+function defaultSpec(type){
+  switch(type){
+    case 'feed': return {T:25,P:1,flow:100, comp:Object.fromEntries(COMP_LIST.map((c,i)=>[c, i<2?50:0]))};
+    case 'heater': return {mode:'T', T:80, duty:0};
+    case 'heatex': return {T_hot_out:60};
+    case 'pump': return {Pout:5};
+    case 'compressor': return {Pout:10, eta:0.75};
+    case 'valve': return {Pout:0.5};
+    case 'splitter': return {frac:0.5};
+    case 'flash': return {T:70, P:1};
+    case 'column': return {N:15, NF:8, R:2.0, D:50, P:1, sideFrac:0.1};
+    case 'compsep': return {target:COMP_LIST[0], recovery:0.95};
+    case 'reactor': return {key:COMP_LIST[0], conv:0.8, prod:COMP_LIST[1]};
+    default: return {};
+  }
+}
+
+// ============================================================
+//  PALETTE  (click-to-place is primary; drag still works)
+// ============================================================
+let armedType=null;  // when a palette item is "armed", next canvas click places it
+function buildPalette(){
+  const pal=document.getElementById('palette');
+  const cats={};
+  for(const [t,d] of Object.entries(UNIT_DEFS)){(cats[d.cat]=cats[d.cat]||[]).push([t,d]);}
+  let html='';
+  for(const [cat,items] of Object.entries(cats)){
+    html+=`<h3>${cat}</h3>`;
+    for(const [t,d] of items){
+      html+=`<div class="unit-chip" draggable="true" data-type="${t}"><span class="chip-ico">${d.glyph()}</span><span>${d.name}</span></div>`;
+    }
+  }
+  pal.innerHTML=html;
+  pal.querySelectorAll('.unit-chip').forEach(ch=>{
+    ch.addEventListener('dragstart',e=>{disarm();e.dataTransfer.setData('type',ch.dataset.type);});
+    ch.addEventListener('click',()=>{
+      if(armedType===ch.dataset.type){disarm();}
+      else{ arm(ch.dataset.type, ch); }
+    });
+  });
+}
+function arm(type,chip){
+  disarm();
+  armedType=type;
+  chip.classList.add('armed');
+  cwrap.classList.add('placing');
+  status('Click on the canvas to place the '+UNIT_DEFS[type].name+' (Esc to cancel)');
+}
+function disarm(){
+  armedType=null;
+  document.querySelectorAll('.unit-chip.armed').forEach(c=>c.classList.remove('armed'));
+  cwrap.classList.remove('placing');
+}
+cwrap.addEventListener('dragover',e=>e.preventDefault());
+cwrap.addEventListener('drop',e=>{
+  e.preventDefault();
+  const type=e.dataTransfer.getData('type'); if(!type)return;
+  const r=cwrap.getBoundingClientRect();
+  pushHistory();
+  addNode(type, e.clientX-r.left-52, e.clientY-r.top-32);
+});
+
+// ============================================================
+//  NODES
+// ============================================================
+function addNode(type,x,y){
+  const id='n'+(nid++);
+  const cnt=Object.values(nodes).filter(n=>n.type===type).length+1;
+  nodes[id]={id,type,x:Math.max(10,x),y:Math.max(10,y),
+    name:UNIT_DEFS[type].name.split('/')[0].split('.')[0].replace(/\s/g,'')+'-'+cnt,
+    spec:defaultSpec(type)};
+  renderNode(id);
+  selectNode(id);
+  return id;
+}
+function renderNode(id){
+  const n=nodes[id]; const d=UNIT_DEFS[n.type];
+  let el=document.getElementById(id);
+  if(!el){
+    el=document.createElement('div'); el.className='node'; el.id=id;
+    canvas.appendChild(el);
+    makeDraggable(el,n);
+  }
+  el.style.left=n.x+'px'; el.style.top=n.y+'px';
+  el.style.width=d.w+'px'; el.style.height=d.h+'px';
+  let html=`<div class="shape">${d.glyph()}</div><div class="nm">${n.name}<span class="ty">${d.name}</span></div>`;
+  // named ports around the perimeter
+  for(const p of d.ports){
+    const off=portOffset(d,p); // {x,y} in px relative to node box
+    html+=`<div class="port ${p.dir}" data-node="${id}" data-port="${p.id}" data-dir="${p.dir}" title="${p.label}" style="left:${off.x}px;top:${off.y}px"></div>`;
+  }
+  el.innerHTML=html;
+  el.querySelectorAll('.port').forEach(portHooks);
+  el.addEventListener('mousedown',ev=>{if(!ev.target.classList.contains('port'))selectNode(id);});
+}
+// pixel offset of a port within its node box (CSS left/top, port is translate(-50%,-50%))
+function portOffset(d,p){
+  const W=d.w,H=d.h;
+  switch(p.side){
+    case 'left':   return {x:0,   y:H*p.pos};
+    case 'right':  return {x:W,   y:H*p.pos};
+    case 'top':    return {x:W*p.pos, y:0};
+    case 'bottom': return {x:W*p.pos, y:H};
+  }
+  return {x:W/2,y:H/2};
+}
+function makeDraggable(el,n){
+  let sx,sy,ox,oy,moving=false,changed=false;
+  el.addEventListener('mousedown',e=>{
+    if(e.target.classList.contains('port'))return;
+    if(armedType)return;
+    moving=true;changed=false; sx=e.clientX; sy=e.clientY; ox=n.x; oy=n.y;
+    e.preventDefault();
+    let pushed=false;
+    const mv=ev=>{ if(!moving)return;
+      const nx=ox+(ev.clientX-sx), ny=oy+(ev.clientY-sy);
+      if(!pushed && (Math.abs(nx-ox)>2||Math.abs(ny-oy)>2)){pushHistory();pushed=true;changed=true;}
+      n.x=nx; n.y=ny;
+      el.style.left=n.x+'px'; el.style.top=n.y+'px'; drawWires(); };
+    const up=()=>{moving=false;document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);};
+    document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
+  });
+}
+
+// ============================================================
+//  WIRING
+// ============================================================
+// ============================================================
+//  WIRING  (draw.io-style: drag a port, preview follows, snap to target)
+// ============================================================
+let pending=null; // {node,port,dir}
+function portHooks(p){
+  p.addEventListener('mousedown',e=>{
+    e.stopPropagation();
+    if(armedType)return;
+    pending={node:p.dataset.node,port:p.dataset.port,dir:p.dataset.dir};
+    let lastTgt=null;
+    const highlight=ev=>{
+      clearTargets();
+      const el=document.elementFromPoint(ev.clientX,ev.clientY);
+      let tgtPort=null;
+      if(el&&el.classList.contains('port')) tgtPort=el;
+      else { // hovering a node body? snap to its nearest free compatible port
+        const nodeEl=el&&el.closest&&el.closest('.node');
+        if(nodeEl&&nodeEl.id!==pending.node){
+          tgtPort=nearestFreePort(nodeEl, pending.dir==='out'?'in':'out', ev);
+          if(tgtPort)nodeEl.classList.add('wire-target');
+        }
+      }
+      if(tgtPort){
+        const cand={node:tgtPort.dataset.node,port:tgtPort.dataset.port,dir:tgtPort.dataset.dir};
+        if(validConnection(pending,cand)){tgtPort.classList.add('tgt');lastTgt=cand;}
+        else lastTgt=null;
+      } else lastTgt=null;
+      drawWires(ev);
+    };
+    const up=ev=>{
+      document.removeEventListener('mousemove',highlight);document.removeEventListener('mouseup',up);
+      let cand=lastTgt;
+      if(!cand){
+        const el=document.elementFromPoint(ev.clientX,ev.clientY);
+        if(el&&el.classList.contains('port'))cand={node:el.dataset.node,port:el.dataset.port,dir:el.dataset.dir};
+      }
+      if(cand&&validConnection(pending,cand)){
+        const a=pending,b=cand;
+        const from=a.dir==='out'?a:b, to=a.dir==='out'?b:a;
+        pushHistory();
+        addEdge(from.node,from.port,to.node,to.port);
+      }
+      pending=null; clearTargets(); drawWires();
+    };
+    document.addEventListener('mousemove',highlight);document.addEventListener('mouseup',up);
+  });
+}
+// pick the free port (matching dir) on a node nearest the cursor
+function nearestFreePort(nodeEl,wantDir,ev){
+  const ports=[...nodeEl.querySelectorAll('.port.'+wantDir)];
+  let best=null,bestD=Infinity;
+  for(const pe of ports){
+    if(portInUse(pe.dataset.node,pe.dataset.port,wantDir))continue;
+    const r=pe.getBoundingClientRect();
+    const d=(r.left+r.width/2-ev.clientX)**2+(r.top+r.height/2-ev.clientY)**2;
+    if(d<bestD){bestD=d;best=pe;}
+  }
+  return best;
+}
+function portInUse(node,port,dir){
+  if(dir==='in') return Object.values(edges).some(e=>e.to===node&&e.toPort===port);
+  return Object.values(edges).some(e=>e.from===node&&e.fromPort===port);
+}
+function clearTargets(){
+  document.querySelectorAll('.port.tgt').forEach(p=>p.classList.remove('tgt'));
+  document.querySelectorAll('.node.wire-target').forEach(n=>n.classList.remove('wire-target'));
+}
+function validConnection(a,b){
+  if(!a||!b)return false;
+  if(a.node===b.node)return false;
+  if(a.dir===b.dir)return false;            // must be out -> in
+  const out=a.dir==='out'?a:b, inp=a.dir==='out'?b:a;
+  // each port carries one stream
+  if(portInUse(out.node,out.port,'out'))return false;
+  if(portInUse(inp.node,inp.port,'in'))return false;
+  // no exact duplicate
+  if(Object.values(edges).some(e=>e.from===out.node&&e.fromPort===out.port&&e.to===inp.node&&e.toPort===inp.port))return false;
+  return true;
+}
+function addEdge(from,fromPort,to,toPort){
+  if(portInUse(from,fromPort,'out')){toast('That outlet is already connected');return;}
+  if(portInUse(to,toPort,'in')){toast('That inlet is already connected');return;}
+  const id='e'+(eid++);
+  edges[id]={id,from,fromPort,to,toPort,name:'S'+(eid),solved:null,waypoints:[]};
+  selectEdge(id);
+  drawWires();
+  const fl=portDef(nodes[from].type,fromPort).label, tl=portDef(nodes[to].type,toPort).label;
+  status(`Connected ${nodes[from].name} (${fl}) → ${nodes[to].name} (${tl})`);
+}
+// Absolute canvas coords of a specific port, plus the outward normal direction.
+function portXY(nodeId,portId){
+  const n=nodes[nodeId]; if(!n)return{x:0,y:0,nx:1,ny:0};
+  const d=UNIT_DEFS[n.type]; const p=portDef(n.type,portId)||d.ports[0];
+  const off=portOffset(d,p);
+  const nrm={left:[-1,0],right:[1,0],top:[0,-1],bottom:[0,1]}[p.side]||[1,0];
+  return {x:n.x+off.x, y:n.y+off.y, nx:nrm[0], ny:nrm[1], side:p.side};
+}
+
+let ROUTE='ortho';     // 'curve' | 'ortho' | 'straight' — right-angle by default
+
+// Build the list of points an edge passes through: outlet, waypoints, inlet.
+function edgePoints(e){
+  const a=portXY(e.from,e.fromPort), b=portXY(e.to,e.toPort);
+  return [a, ...(e.waypoints||[]), b];
+}
+
+// =========================================================================
+//  ORTHOGONAL ROUTING (draw.io-style)
+//  An ortho edge's route = [A, ...bends, B] joined by right-angle segments.
+//  - With no manual waypoints we auto-route: a clean L/Z that leaves & enters
+//    along the port normals and avoids other blocks.
+//  - Manual waypoints are bend coordinates the user has pinned by dragging a
+//    segment. We rebuild a fully-orthogonal chain that passes through them.
+// =========================================================================
+
+// --- obstacle data: padded bounding boxes of every block ---
+function nodeRects(exclude){
+  const pad=12, out=[];
+  for(const id in nodes){
+    if(exclude&&exclude.includes(id))continue;
+    const n=nodes[id], d=UNIT_DEFS[n.type];
+    out.push({x1:n.x-pad, y1:n.y-pad, x2:n.x+d.w+pad, y2:n.y+d.h+pad});
+  }
+  return out;
+}
+function segHitsRect(p,q,r){
+  const minx=Math.min(p.x,q.x),maxx=Math.max(p.x,q.x);
+  const miny=Math.min(p.y,q.y),maxy=Math.max(p.y,q.y);
+  // strict overlap: a segment lying exactly on the padded boundary is allowed
+  // (the pad already provides clearance), so use > / < not >= / <=.
+  if(maxx<=r.x1||minx>=r.x2||maxy<=r.y1||miny>=r.y2)return false;
+  return true;
+}
+function polyCost(pts,rects){
+  let hits=0, len=0; const bends=Math.max(0,pts.length-2);
+  for(let i=0;i<pts.length-1;i++){
+    len+=Math.abs(pts[i+1].x-pts[i].x)+Math.abs(pts[i+1].y-pts[i].y);
+    for(const r of rects) if(segHitsRect(pts[i],pts[i+1],r)) hits++;
+  }
+  return hits*100000 + bends*60 + len;
+}
+// Auto orthogonal route from port A to port B, avoiding other blocks.
+function orthoRoute(A,B,exclude){
+  const stub=22, clr=20; // stub length, obstacle clearance
+  const a={x:A.x+(A.nx||0)*stub, y:A.y+(A.ny||0)*stub};
+  const b={x:B.x+(B.nx||0)*stub, y:B.y+(B.ny||0)*stub};
+  const rects=nodeRects(exclude);
+  const cand=[];
+  cand.push([A,a,{x:b.x,y:a.y},b,B]);
+  cand.push([A,a,{x:a.x,y:b.y},b,B]);
+  const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+  cand.push([A,a,{x:mx,y:a.y},{x:mx,y:b.y},b,B]);
+  cand.push([A,a,{x:a.x,y:my},{x:b.x,y:my},b,B]);
+  // detour candidates that clear the whole block band by a margin
+  let top=Infinity,bot=-Infinity,left=Infinity,right=-Infinity;
+  for(const r of rects){top=Math.min(top,r.y1);bot=Math.max(bot,r.y2);left=Math.min(left,r.x1);right=Math.max(right,r.x2);}
+  if(isFinite(top)){
+    const yA=top-clr, yB=bot+clr, xL=left-clr, xR=right+clr;
+    cand.push([A,a,{x:a.x,y:yA},{x:b.x,y:yA},b,B]);   // over the top
+    cand.push([A,a,{x:a.x,y:yB},{x:b.x,y:yB},b,B]);   // under the bottom
+    cand.push([A,a,{x:xL,y:a.y},{x:xL,y:b.y},b,B]);   // around the left
+    cand.push([A,a,{x:xR,y:a.y},{x:xR,y:b.y},b,B]);   // around the right
+    // L-then-detour combos for aligned ports: go out, over, and back
+    cand.push([A,a,{x:a.x,y:yA},{x:b.x,y:yA},{x:b.x,y:b.y},b,B]);
+    cand.push([A,a,{x:a.x,y:yB},{x:b.x,y:yB},{x:b.x,y:b.y},b,B]);
+  }
+  let best=null,bestC=Infinity;
+  for(const c of cand){
+    const clean=dedupeColinear(c);
+    const cost=polyCost(clean,rects);
+    if(cost<bestC){bestC=cost;best=clean;}
+  }
+  return best||[A,B];
+}
+// Build a fully-orthogonal chain that starts at A (leaving along its normal),
+// passes through each manual bend, and ends at B (entering along its normal).
+// Between consecutive anchor points we insert one elbow so every leg is H or V.
+function orthoThrough(A,B,bends){
+  const stub=20;
+  const aStub={x:A.x+(A.nx||0)*stub, y:A.y+(A.ny||0)*stub};
+  const bStub={x:B.x+(B.nx||0)*stub, y:B.y+(B.ny||0)*stub};
+  const anchors=[A,aStub,...bends,bStub,B];
+  const chain=[anchors[0]];
+  for(let i=1;i<anchors.length;i++){
+    const p=chain[chain.length-1], q=anchors[i];
+    if(Math.abs(p.x-q.x)<0.5||Math.abs(p.y-q.y)<0.5){ chain.push(q); }     // already aligned
+    else { chain.push({x:q.x,y:p.y}, q); }                                 // elbow (H then V)
+  }
+  return dedupeColinear(chain);
+}
+function dedupeColinear(pts){
+  const out=[pts[0]];
+  for(let i=1;i<pts.length-1;i++){
+    const p=out[out.length-1], c=pts[i], n=pts[i+1];
+    const colinH=Math.abs(p.y-c.y)<0.5&&Math.abs(c.y-n.y)<0.5;
+    const colinV=Math.abs(p.x-c.x)<0.5&&Math.abs(c.x-n.x)<0.5;
+    if(colinH||colinV)continue;
+    if(Math.abs(p.x-c.x)<0.5&&Math.abs(p.y-c.y)<0.5)continue;
+    out.push(c);
+  }
+  out.push(pts[pts.length-1]);
+  return out;
+}
+// Geometric midpoint measured along the polyline through all points.
+function polylineMidpoint(pts){
+  if(pts.length<2)return pts[0]||{x:0,y:0};
+  let total=0; const segs=[];
+  for(let i=0;i<pts.length-1;i++){
+    const dx=pts[i+1].x-pts[i].x, dy=pts[i+1].y-pts[i].y;
+    const len=Math.hypot(dx,dy); segs.push(len); total+=len;
+  }
+  let half=total/2;
+  for(let i=0;i<segs.length;i++){
+    if(half<=segs[i]){
+      const t=segs[i]?half/segs[i]:0;
+      return {x:pts[i].x+(pts[i+1].x-pts[i].x)*t, y:pts[i].y+(pts[i+1].y-pts[i].y)*t};
+    }
+    half-=segs[i];
+  }
+  return pts[pts.length-1];
+}
+// Final rendered point list for an edge (matches what's drawn).
+function routePoints(e){
+  const A=portXY(e.from,e.fromPort), B=portXY(e.to,e.toPort);
+  if(ROUTE!=='ortho') return [A, ...(e.waypoints||[]), B];
+  const bends=e.waypoints||[];
+  if(bends.length===0) return orthoRoute(A,B,[e.from,e.to]);
+  return orthoThrough(A,B,bends);
+}
+
+// Build an SVG path through points. The first and last points may carry a
+// normal (nx,ny) from their port side, so the path leaves/enters along it.
+// `edge` (optional) lets ortho routing exclude the two connected blocks as
+// obstacles and auto-route around the rest.
+function buildPath(pts,edge){
+  if(pts.length<2)return '';
+  const A=pts[0], B=pts[pts.length-1];
+  if(ROUTE==='straight'){
+    return 'M'+pts.map(p=>`${p.x},${p.y}`).join(' L');
+  }
+  if(ROUTE==='ortho'){
+    let chain;
+    if(edge){ chain=routePoints(edge); }
+    else {
+      // no edge context (e.g. preview): simple normal-stub elbow
+      const stub=18, manual=pts.slice(1,-1);
+      const start={x:A.x+(A.nx||0)*stub, y:A.y+(A.ny||0)*stub};
+      const end={x:B.x+(B.nx||0)*stub, y:B.y+(B.ny||0)*stub};
+      const seq=[A,start,...manual,end,B];
+      chain=[seq[0]];
+      for(let i=1;i<seq.length;i++){
+        const p0=seq[i-1],p1=seq[i];
+        if(i===1||i===seq.length-1){chain.push(p1);}
+        else { const mx=(p0.x+p1.x)/2; chain.push({x:mx,y:p0.y},{x:mx,y:p1.y},p1); }
+      }
+      chain=dedupeColinear(chain);
+    }
+    return 'M'+chain.map(p=>`${p.x},${p.y}`).join(' L');
+  }
+  // smooth cubic. Endpoint tangents follow the port normal; interior waypoints
+  // use Catmull-Rom. Control-handle length scales with span for a natural bend.
+  const span=Math.hypot(B.x-A.x,B.y-A.y);
+  const k=Math.max(36,span*0.42);
+  if(pts.length===2){
+    const c1={x:A.x+(A.nx||0)*k, y:A.y+(A.ny||0)*k};
+    const c2={x:B.x+(B.nx||0)*k, y:B.y+(B.ny||0)*k};
+    if(!A.nx&&!A.ny){c1.x=A.x+Math.max(40,Math.abs(B.x-A.x)*0.5);c1.y=A.y;}
+    if(!B.nx&&!B.ny){c2.x=B.x-Math.max(40,Math.abs(B.x-A.x)*0.5);c2.y=B.y;}
+    return `M${A.x},${A.y} C${c1.x},${c1.y} ${c2.x},${c2.y} ${B.x},${B.y}`;
+  }
+  let d=`M${pts[0].x},${pts[0].y}`;
+  for(let i=0;i<pts.length-1;i++){
+    const p1=pts[i], p2=pts[i+1];
+    let c1,c2;
+    if(i===0){ c1={x:p1.x+(p1.nx||0)*k*0.6||p1.x, y:p1.y+(p1.ny||0)*k*0.6||p1.y};
+               if(!p1.nx&&!p1.ny)c1={x:p1.x+(p2.x-p1.x)/3,y:p1.y};
+    } else { const p0=pts[i-1]; c1={x:p1.x+(p2.x-p0.x)/6, y:p1.y+(p2.y-p0.y)/6}; }
+    if(i===pts.length-2){ c2={x:p2.x+(p2.nx||0)*k*0.6, y:p2.y+(p2.ny||0)*k*0.6};
+               if(!p2.nx&&!p2.ny)c2={x:p2.x-(p2.x-p1.x)/3,y:p2.y};
+    } else { const p3=pts[i+2]; c2={x:p2.x-(p3.x-p1.x)/6, y:p2.y-(p3.y-p1.y)/6}; }
+    d+=` C${c1.x},${c1.y} ${c2.x},${c2.y} ${p2.x},${p2.y}`;
+  }
+  return d;
+}
+
+function drawWires(mouseEv){
+  [...wires.querySelectorAll('.wire,.wire-hit,.wire-label,.tmp,.waypoint,.endpoint,.segh')].forEach(el=>el.remove());
+  for(const e of Object.values(edges)){
+    const pts=edgePoints(e);
+    const dPath=buildPath(pts,e);
+    const a=pts[0], b=pts[pts.length-1];
+    let cls='wire'; let mk='url(#arrow)';
+    if(e.solved){ if(e.solved.phase==='Vapor'){cls='wire hot';mk='url(#arrowH)';}
+      else if(e.solved.T<25){cls='wire cold';mk='url(#arrowC)';} }
+    const isSel=(selected===e.id&&selKind==='edge');
+    // fat invisible hit area: click selects; double-click adds a bend (curve/straight only)
+    const hit=mk0('path',{class:'wire-hit',d:dPath});
+    hit.addEventListener('click',ev=>{ev.stopPropagation();selectEdge(e.id);});
+    hit.addEventListener('dblclick',ev=>{ev.stopPropagation(); if(ROUTE!=='ortho')addWaypoint(e,ev);});
+    wires.appendChild(hit);
+    const path=mk0('path',{class:cls+(isSel?' sel':''),d:dPath,'marker-end':mk});
+    wires.appendChild(path);
+    // label at the true midpoint of the routed polyline (follows bends/detours)
+    const mid=polylineMidpoint(routePoints(e));
+    const txt=e.name + (e.solved?` · ${e.solved.flow.toFixed(1)}`:'');
+    const lab=mk0('text',{class:'wire-label',x:mid.x,y:mid.y-7,'text-anchor':'middle'});
+    lab.textContent=txt;
+    lab.style.cursor='pointer';
+    lab.style.pointerEvents='all';
+    lab.addEventListener('click',ev=>{ev.stopPropagation();selectEdge(e.id);});
+    wires.appendChild(lab);
+    // when selected, show endpoint re-attach handles + editing affordances
+    if(isSel){
+      const route=routePoints(e);
+      const A2=route[0], B2=route[route.length-1];
+      // endpoint handles (square) — drag to re-attach to a different port
+      const epA=mk0('rect',{class:'endpoint',x:A2.x-6,y:A2.y-6,width:12,height:12,rx:2});
+      epA.addEventListener('mousedown',ev=>startEndpointDrag(ev,e,'from'));
+      wires.appendChild(epA);
+      const epB=mk0('rect',{class:'endpoint',x:B2.x-6,y:B2.y-6,width:12,height:12,rx:2});
+      epB.addEventListener('mousedown',ev=>startEndpointDrag(ev,e,'to'));
+      wires.appendChild(epB);
+      if(ROUTE==='ortho'){
+        // draw.io-style: a draggable handle at the middle of each interior
+        // segment. Dragging slides the whole segment perpendicular to itself —
+        // no new bends are created. The two end segments (touching the ports)
+        // are left alone so the wire keeps leaving/entering along the normal.
+        for(let i=1;i<route.length-2;i++){
+          const p=route[i], q=route[i+1];
+          const horiz=Math.abs(p.y-q.y)<0.5;
+          const mx=(p.x+q.x)/2, my=(p.y+q.y)/2;
+          const handle=mk0('rect',{class:'segh '+(horiz?'h':'v'),
+            x:mx-(horiz?10:4), y:my-(horiz?4:10),
+            width:horiz?20:8, height:horiz?8:20, rx:3});
+          handle.addEventListener('mousedown',ev=>startSegmentDrag(ev,e,i,horiz,route));
+          wires.appendChild(handle);
+        }
+      } else {
+        // curve / straight: point-based waypoint handles + ghost add-points
+        (e.waypoints||[]).forEach((wp,idx)=>{
+          const h=mk0('circle',{class:'waypoint',cx:wp.x,cy:wp.y,r:6});
+          h.addEventListener('mousedown',ev=>startWaypointDrag(ev,e,idx));
+          h.addEventListener('dblclick',ev=>{ev.stopPropagation();pushHistory();e.waypoints.splice(idx,1);drawWires();renderEdgeInspector();});
+          wires.appendChild(h);
+        });
+        for(let i=0;i<pts.length-1;i++){
+          const gx=(pts[i].x+pts[i+1].x)/2, gy=(pts[i].y+pts[i+1].y)/2;
+          const g=mk0('circle',{class:'waypoint ghost',cx:gx,cy:gy,r:5});
+          g.addEventListener('mousedown',ev=>{ev.stopPropagation();pushHistory();
+            e.waypoints.splice(i,0,{x:gx,y:gy}); drawWires(); startWaypointDrag(ev,e,i,true);});
+          wires.appendChild(g);
+        }
+      }
+    }
+  }
+  if(pending&&mouseEv){
+    const a=pendingAnchor();
+    const r=cwrap.getBoundingClientRect();
+    const mx=mouseEv.clientX-r.left, my=mouseEv.clientY-r.top;
+    const k=Math.max(30,Math.hypot(mx-a.x,my-a.y)*0.4);
+    const c1x=a.x+(a.nx||0)*k, c1y=a.y+(a.ny||0)*k;
+    const tmp=mk0('path',{class:'wire tmp',d:`M${a.x},${a.y} C${c1x},${c1y} ${mx},${my} ${mx},${my}`,'stroke-dasharray':'5 4'});
+    wires.appendChild(tmp);
+  }
+}
+// anchor point for the live preview: a dragged-from port, or the fixed end of a
+// re-attaching edge.
+function pendingAnchor(){
+  if(pending.reattach){
+    const e=edges[pending.edge];
+    return pending.end==='to' ? portXY(e.from,e.fromPort) : portXY(e.to,e.toPort);
+  }
+  return portXY(pending.node,pending.port);
+}
+
+// Add a waypoint at the cursor position on an edge (from dblclick on the wire).
+function addWaypoint(e,ev){
+  const r=cwrap.getBoundingClientRect();
+  const x=ev.clientX-r.left, y=ev.clientY-r.top;
+  e.waypoints=e.waypoints||[];
+  // insert at the segment nearest the click so the bend lands in the right place
+  const pts=edgePoints(e); let best=0,bestD=Infinity;
+  for(let i=0;i<pts.length-1;i++){
+    const mx=(pts[i].x+pts[i+1].x)/2, my=(pts[i].y+pts[i+1].y)/2;
+    const d=(mx-x)**2+(my-y)**2; if(d<bestD){bestD=d;best=i;}
+  }
+  pushHistory();
+  e.waypoints.splice(best,0,{x,y});
+  selectEdge(e.id);
+  status('Bend added — drag handles to shape the stream; double-click a handle to remove it');
+}
+
+// Drag a waypoint handle. `fresh` means a ghost-handle that already pushed history.
+function startWaypointDrag(ev,e,idx,fresh){
+  ev.stopPropagation(); ev.preventDefault();
+  const r=cwrap.getBoundingClientRect();
+  let pushed=!!fresh, sx=ev.clientX, sy=ev.clientY;
+  const mv=m=>{
+    if(!pushed && (Math.abs(m.clientX-sx)>2||Math.abs(m.clientY-sy)>2)){pushHistory();pushed=true;}
+    e.waypoints[idx]={x:m.clientX-r.left, y:m.clientY-r.top}; drawWires(); };
+  const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);renderEdgeInspector();};
+  document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
+}
+
+// draw.io-style segment slide: drag an interior segment perpendicular to its
+// orientation. Both of the segment's endpoints move together so all corners
+// stay at 90°, and we re-derive the edge's bend points from the result. No new
+// bends appear unless the slide genuinely needs them.
+function startSegmentDrag(ev,e,segIdx,horiz,baseRoute){
+  ev.stopPropagation(); ev.preventDefault();
+  const r=cwrap.getBoundingClientRect();
+  const route=baseRoute.map(p=>({x:p.x,y:p.y}));
+  const sx=ev.clientX, sy=ev.clientY;
+  let pushed=false;
+  const mv=m=>{
+    if(!pushed && (Math.abs(m.clientX-sx)>2||Math.abs(m.clientY-sy)>2)){pushHistory();pushed=true;}
+    const mx=m.clientX-r.left, my=m.clientY-r.top;
+    const moved=route.map(p=>({x:p.x,y:p.y}));
+    if(horiz){ moved[segIdx].y=my; moved[segIdx+1].y=my; }   // slide horizontal seg vertically
+    else      { moved[segIdx].x=mx; moved[segIdx+1].x=mx; }  // slide vertical seg horizontally
+    // store interior bends (drop the two port endpoints AND the two normal stubs)
+    e.waypoints = deriveBends(moved);
+    drawWires();
+  };
+  const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);renderEdgeInspector();};
+  document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
+}
+// From a full orthogonal route [port, stub, ...bends, stub, port], keep just the
+// interior bend points that orthoThrough needs to reproduce the shape.
+function deriveBends(route){
+  const clean=dedupeColinear(route);
+  // drop first & last (ports). The remaining interior points are the bends.
+  const interior=clean.slice(1,-1);
+  // collapse near-duplicates
+  const out=[];
+  for(const p of interior){
+    const last=out[out.length-1];
+    if(last&&Math.abs(last.x-p.x)<1&&Math.abs(last.y-p.y)<1)continue;
+    out.push({x:Math.round(p.x),y:Math.round(p.y)});
+  }
+  return out;
+}
+
+// Drag an edge endpoint to re-attach it to a different port (draw.io rewire).
+// `end` is 'from' or 'to'. We snap to free, compatible ports while dragging.
+function startEndpointDrag(ev,e,end){
+  ev.stopPropagation(); ev.preventDefault();
+  const wantDir = end==='from' ? 'out' : 'in';
+  pending={reattach:true, edge:e.id, end}; // drives the live preview anchor
+  let lastCand=null, pushed=false;
+  const highlight=m=>{
+    clearTargets();
+    const el=document.elementFromPoint(m.clientX,m.clientY);
+    let tgtPort=null;
+    if(el&&el.classList.contains('port')&&el.dataset.dir===wantDir) tgtPort=el;
+    else {
+      const nodeEl=el&&el.closest&&el.closest('.node');
+      if(nodeEl){ tgtPort=nearestFreePort(nodeEl,wantDir,m); if(tgtPort)nodeEl.classList.add('wire-target'); }
+    }
+    if(tgtPort){
+      const cand={node:tgtPort.dataset.node,port:tgtPort.dataset.port,dir:wantDir};
+      if(validReattach(e,end,cand)){tgtPort.classList.add('tgt');lastCand=cand;}
+      else lastCand=null;
+    } else lastCand=null;
+    drawWires(m);
+  };
+  const up=()=>{
+    document.removeEventListener('mousemove',highlight);document.removeEventListener('mouseup',up);
+    if(lastCand){
+      if(!pushed){pushHistory();pushed=true;}
+      if(end==='from'){e.from=lastCand.node; e.fromPort=lastCand.port;}
+      else{e.to=lastCand.node; e.toPort=lastCand.port;}
+      e.solved=null;
+      status('Stream re-attached to '+nodes[lastCand.node].name+' ('+portDef(nodes[lastCand.node].type,lastCand.port).label+')');
+    }
+    pending=null; clearTargets(); drawWires();
+  };
+  document.addEventListener('mousemove',highlight);document.addEventListener('mouseup',up);
+}
+// validate a re-attach: target port must be free (unless it's the same end's
+// current port), correct direction, and not create a self-loop or duplicate.
+function validReattach(e,end,cand){
+  const from = end==='from' ? cand.node : e.from;
+  const fromPort = end==='from' ? cand.port : e.fromPort;
+  const to = end==='to' ? cand.node : e.to;
+  const toPort = end==='to' ? cand.port : e.toPort;
+  if(from===to)return false;
+  // the port being moved onto must be free, ignoring this very edge
+  const busy = cand.dir==='out'
+    ? Object.values(edges).some(x=>x!==e&&x.from===cand.node&&x.fromPort===cand.port)
+    : Object.values(edges).some(x=>x!==e&&x.to===cand.node&&x.toPort===cand.port);
+  if(busy)return false;
+  // no duplicate of another edge
+  if(Object.values(edges).some(x=>x!==e&&x.from===from&&x.fromPort===fromPort&&x.to===to&&x.toPort===toPort))return false;
+  return true;
+}
+function mk0(tag,attrs){const e=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const k in attrs)e.setAttribute(k,attrs[k]);return e;}
+
+// ============================================================
+//  SELECTION + INSPECTOR
+// ============================================================
+function selectNode(id){selected=id;selKind='node';refreshSel();renderInspector();}
+function selectEdge(id){selected=id;selKind='edge';refreshSel();renderInspector();drawWires();}
+function refreshSel(){document.querySelectorAll('.node').forEach(n=>n.classList.toggle('sel',selKind==='node'&&n.id===selected));}
+canvas.addEventListener('mousedown',e=>{
+  if(e.target!==canvas)return;
+  if(armedType){
+    const r=cwrap.getBoundingClientRect();
+    pushHistory();
+    addNode(armedType, e.clientX-r.left-52, e.clientY-r.top-32);
+    disarm();
+    return;
+  }
+  selected=null;selKind=null;refreshSel();renderInspector();drawWires();
+});
+document.addEventListener('keydown',e=>{
+  const typing=/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement&&document.activeElement.tagName);
+  if(e.key==='Escape'){disarm();}
+  if(typing)return;
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'&&!e.shiftKey){e.preventDefault();undo();}
+  else if((e.ctrlKey||e.metaKey)&&(e.key.toLowerCase()==='y'||(e.key.toLowerCase()==='z'&&e.shiftKey))){e.preventDefault();redo();}
+  else if((e.key==='Delete'||e.key==='Backspace')&&selected){e.preventDefault();
+    pushHistory();
+    if(selKind==='node')deleteNode(selected);
+    else if(selKind==='edge'){delete edges[selected];selected=null;selKind=null;renderInspector();drawWires();}
+  }
+});
+
+function renderInspector(){
+  const ins=document.getElementById('inspector');
+  if(!selected){ins.innerHTML=`<div class="empty-insp"><svg width=42 height=42 viewBox="0 0 24 24" fill=none stroke=currentColor stroke-width=1.4><rect x=3 y=3 width=7 height=7 rx=1/><rect x=14 y=3 width=7 height=7 rx=1/><rect x=3 y=14 width=7 height=7 rx=1/><path d="M14 17.5h7M17.5 14v7"/></svg><div>Select a block to edit its specifications, or a feed to set composition and conditions.</div></div>`;return;}
+  if(selKind==='edge'){renderEdgeInspector();return;}
+  const n=nodes[selected]; const d=UNIT_DEFS[n.type];
+  let body=`<div class="field"><label>Block name</label><input id="f_name" value="${n.name}"></div>`;
+  body+=specFields(n);
+  // solved diagnostics
+  let diag='';
+  if(n.type==='heater'&&n._duty!==undefined) diag=`Duty: <b>${n._duty.toFixed(1)} kW</b>`;
+  if(n.type==='heatex'&&n._duty!==undefined) diag=`Q transferred: <b>${Math.abs(n._duty).toFixed(1)} kW</b><br>Cold outlet T: <b>${n._Tcold_out!=null?n._Tcold_out.toFixed(1):'—'} °C</b>`;
+  if(n.type==='pump'&&n._work!==undefined) diag=`Pump work: <b>${n._work.toFixed(2)} kW</b>`;
+  if(n.type==='compressor'&&n._work!==undefined) diag=`Shaft work: <b>${n._work.toFixed(1)} kW</b><br>Outlet T: <b>${n._Tout!=null?n._Tout.toFixed(1):'—'} °C</b>`;
+  if(n.type==='valve'&&n._Tout!==undefined) diag=`Outlet T: <b>${n._Tout.toFixed(1)} °C</b>`;
+  if(n.type==='column'&&n._colConverged!==undefined){
+    const tp=n._Tprofile||[];
+    diag=`Column ${n._colConverged?'<b>converged</b>':'<b style="color:#e0976a">not converged</b>'}<br>
+      Top T = ${tp.length?tp[0].toFixed(1):'—'} °C · Bottom T = ${tp.length?tp[tp.length-1].toFixed(1):'—'} °C`;
+  }
+  if(diag) body+=`<div class="field"><label>Solved diagnostics</label><div class="hint">${diag}</div></div>`;
+  body+=`<button class="del-btn" id="delBtn">Delete block</button>`;
+  ins.innerHTML=`<div class="insp-head"><div class="ti">${n.name}</div><div class="su">${d.name}</div></div><div class="insp-body">${body}</div>`;
+  wireInspector(n);
+}
+function specFields(n){
+  const s=n.spec;
+  switch(n.type){
+    case 'feed':{
+      const filt=(n._filter||'').toLowerCase();
+      const total=COMP_LIST.reduce((a,c)=>a+(s.comp[c]||0),0);
+      let comp='';
+      for(const c of COMP_LIST){
+        const active=(s.comp[c]||0)>0;
+        if(filt && !c.toLowerCase().includes(filt) && !active) continue;
+        comp+=`<div class="comp-row${active?' active':''}"><span class="cn">${c}</span><input data-comp="${c}" value="${s.comp[c]}"></div>`;
+      }
+      return `<div class="row2"><div class="field"><label>Temp (°C)</label><input id="s_T" value="${s.T}"></div>
+        <div class="field"><label>Press (bar)</label><input id="s_P" value="${s.P}"></div></div>
+        <div class="field"><label>Composition — molar flows (kmol/h) · total ${total.toFixed(1)}</label>
+        <input id="comp_filter" placeholder="filter components…" value="${n._filter||''}" style="margin-bottom:7px">
+        <div class="comp-list">${comp}</div></div>
+        <div class="hint">Total flow is the sum of component flows. Active components are highlighted; type to filter the ${COMP_LIST.length}-component list.</div>`;
+    }
+    case 'heater':
+      return `<div class="field"><label>Specification</label><select id="s_mode">
+        <option value="T"${s.mode==='T'?' selected':''}>Outlet temperature</option>
+        <option value="Q"${s.mode==='Q'?' selected':''}>Heat duty</option></select></div>
+        <div class="field" id="hfld">${s.mode==='T'
+          ? `<label>Outlet T (°C)</label><input id="s_T" value="${s.T}">`
+          : `<label>Duty Q (kW, +=heat)</label><input id="s_duty" value="${s.duty}">`}</div>
+        <div class="hint">Single-stream utility heater/cooler. Duty reported either way.</div>`;
+    case 'heatex':
+      return `<div class="field"><label>Hot side outlet T (°C)</label><input id="s_T_hot_out" value="${s.T_hot_out}"></div>
+        <div class="hint">Adiabatic 2-stream exchanger. Specify the hot outlet temperature; the cold outlet is calculated from the energy balance.<br>Orange ports = hot stream · Blue ports = cold stream.</div>`;
+    case 'pump':
+      return `<div class="field"><label>Outlet pressure (bar)</label><input id="s_Pout" value="${s.Pout}"></div>
+        <div class="hint">Raises pressure; ideal (isothermal liquid). Pump work estimated.</div>`;
+    case 'compressor':
+      return `<div class="row2"><div class="field"><label>Outlet pressure (bar)</label><input id="s_Pout" value="${s.Pout}"></div>
+        <div class="field"><label>Isentropic efficiency</label><input id="s_eta" value="${s.eta}"></div></div>
+        <div class="hint">Isentropic ideal-gas compression. γ from molar-average Cp. Shaft work = W<sub>s</sub> / η.</div>`;
+    case 'valve':
+      return `<div class="field"><label>Outlet pressure (bar)</label><input id="s_Pout" value="${s.Pout}"></div>
+        <div class="hint">Isenthalpic throttling (Joule-Thomson). Outlet temperature from energy balance at constant H.</div>`;
+    case 'splitter':
+      return `<div class="field"><label>Fraction to outlet 1</label><input id="s_frac" value="${s.frac}"></div>
+        <div class="hint">Splits total flow by ratio; composition unchanged on both legs.</div>`;
+    case 'flash':
+      return `<div class="row2"><div class="field"><label>Flash T (°C)</label><input id="s_T" value="${s.T}"></div>
+        <div class="field"><label>Flash P (bar)</label><input id="s_P" value="${s.P}"></div></div>
+        <div class="hint">Rigorous isothermal VLE — Rachford-Rice with K-values from the active property method (composition-iterated). Outlet 1 = vapor, outlet 2 = liquid.</div>`;
+    case 'column':
+      return `<div class="row2"><div class="field"><label>Stages N</label><input id="s_N" value="${s.N}"></div>
+        <div class="field"><label>Feed stage</label><input id="s_NF" value="${s.NF}"></div></div>
+        <div class="row2"><div class="field"><label>Reflux ratio R</label><input id="s_R" value="${s.R}"></div>
+        <div class="field"><label>Distillate D (kmol/h)</label><input id="s_D" value="${s.D}"></div></div>
+        <div class="row2"><div class="field"><label>Pressure (bar)</label><input id="s_P" value="${s.P}"></div>
+        <div class="field"><label>Side draw frac.</label><input id="s_sideFrac" value="${s.sideFrac!=null?s.sideFrac:0.1}"></div></div>
+        <div class="hint">Rigorous MESH column. Ports: <b>Distillate</b> (top), <b>Bottoms</b> (base), and an optional <b>Side draw</b> (right) that pulls the set fraction of the bottoms liquid. Connect only the ports you need.</div>`;
+    case 'compsep':{
+      let opts=COMP_LIST.map(c=>`<option${s.target===c?' selected':''}>${c}</option>`).join('');
+      return `<div class="field"><label>Key component</label><select id="s_target">${opts}</select></div>
+        <div class="field"><label>Recovery to outlet 1</label><input id="s_recovery" value="${s.recovery}"></div>
+        <div class="hint">Idealized separator: fraction of key sent to top; the rest of every component to bottom.</div>`;
+    }
+    case 'reactor':{
+      let k=COMP_LIST.map(c=>`<option${s.key===c?' selected':''}>${c}</option>`).join('');
+      let p=COMP_LIST.map(c=>`<option${s.prod===c?' selected':''}>${c}</option>`).join('');
+      return `<div class="field"><label>Limiting reactant</label><select id="s_key">${k}</select></div>
+        <div class="field"><label>Fractional conversion</label><input id="s_conv" value="${s.conv}"></div>
+        <div class="field"><label>Product component</label><select id="s_prod">${p}</select></div>
+        <div class="hint">A → B, 1:1 mole basis. Converted reactant becomes product.</div>`;
+    }
+    default:
+      return `<div class="hint">No parameters. ${n.type==='mixer'?'Combines all inlet streams (adiabatic mix).':'Terminal stream sink.'}</div>`;
+  }
+}
+function wireInspector(n){
+  const ins=document.getElementById('inspector');
+  const nm=document.getElementById('f_name');
+  if(nm)nm.oninput=()=>{n.name=nm.value;renderNode(n.id);drawWires();};
+  ins.querySelectorAll('input,select').forEach(inp=>{
+    if(inp.id==='comp_filter')return;
+    inp.onchange=inp.oninput=()=>{collectSpec(n);};
+  });
+  const mode=document.getElementById('s_mode');
+  if(mode)mode.onchange=()=>{n.spec.mode=mode.value;renderInspector();};
+  const flt=document.getElementById('comp_filter');
+  if(flt)flt.oninput=()=>{collectSpec(n);n._filter=flt.value;renderInspector();
+    const f=document.getElementById('comp_filter');if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length);}};
+  const del=document.getElementById('delBtn');
+  if(del)del.onclick=()=>{pushHistory();deleteNode(n.id);};
+}
+function collectSpec(n){
+  const g=id=>{const e=document.getElementById(id);return e?e.value:null;};
+  const s=n.spec;
+  if(n.type==='feed'){
+    s.T=+g('s_T');s.P=+g('s_P');
+    document.querySelectorAll('[data-comp]').forEach(i=>{s.comp[i.dataset.comp]=+i.value||0;});
+  }
+  if(n.type==='heater'){ if(g('s_mode'))s.mode=g('s_mode'); if(g('s_T')!==null)s.T=+g('s_T'); if(g('s_duty')!==null)s.duty=+g('s_duty'); }
+  if(n.type==='heatex'){if(g('s_T_hot_out')!==null)s.T_hot_out=+g('s_T_hot_out');}
+  if(n.type==='pump')s.Pout=+g('s_Pout');
+  if(n.type==='compressor'){s.Pout=+g('s_Pout'); s.eta=Math.max(0.1,Math.min(1.0,+g('s_eta')||0.75));}
+  if(n.type==='valve')s.Pout=+g('s_Pout');
+  if(n.type==='splitter')s.frac=Math.max(0,Math.min(1,+g('s_frac')));
+  if(n.type==='flash'){s.T=+g('s_T');s.P=+g('s_P');}
+  if(n.type==='column'){s.N=Math.max(3,Math.round(+g('s_N')));s.NF=Math.round(+g('s_NF'));s.R=Math.max(0.01,+g('s_R'));s.D=Math.max(0.01,+g('s_D'));s.P=+g('s_P');if(g('s_sideFrac')!==null)s.sideFrac=Math.max(0,Math.min(0.9,+g('s_sideFrac')));}
+  if(n.type==='compsep'){s.target=g('s_target');s.recovery=Math.max(0,Math.min(1,+g('s_recovery')));}
+  if(n.type==='reactor'){s.key=g('s_key');s.conv=Math.max(0,Math.min(1,+g('s_conv')));s.prod=g('s_prod');}
+}
+function renderEdgeInspector(){
+  const e=edges[selected];const ins=document.getElementById('inspector');
+  let res='';
+  if(e.solved){const s=e.solved;
+    res=`<div class="field"><label>Solved results</label>
+      <div class="hint">Phase: <b>${s.phase}</b><br>T = ${s.T.toFixed(1)} °C · P = ${s.P.toFixed(2)} bar<br>
+      Total = ${s.flow.toFixed(2)} kmol/h · ${s.massFlow.toFixed(1)} kg/h<br>
+      Enthalpy = ${(s.H/1000).toFixed(1)} MJ/h</div></div>`;
+  }
+  const nBends=(e.waypoints||[]).length;
+  const routeField=`<div class="field"><label>Stream shape</label>
+    <div class="hint" style="margin-bottom:8px">${nBends} bend${nBends===1?'':'s'}. Drag the orange handles to shape this stream; drag a dashed midpoint to add a bend; double-click a handle to remove it.</div>
+    <button class="del-btn" id="straightBtn" style="background:#eef2ef;border-color:#c3d2c9;color:var(--ink);margin-top:0">Clear bends (straighten)</button></div>`;
+  ins.innerHTML=`<div class="insp-head"><div class="ti">${e.name}</div><div class="su">Process stream · ${nodes[e.from].name} → ${nodes[e.to].name}</div></div>
+    <div class="insp-body"><div class="field"><label>Stream name</label><input id="e_name" value="${e.name}"></div>${routeField}${res}
+    <button class="del-btn" id="delE">Delete stream</button></div>`;
+  document.getElementById('e_name').oninput=ev=>{e.name=ev.target.value;drawWires();};
+  document.getElementById('straightBtn').onclick=()=>{pushHistory();e.waypoints=[];drawWires();renderEdgeInspector();};
+  document.getElementById('delE').onclick=()=>{pushHistory();delete edges[e.id];selected=null;selKind=null;renderInspector();drawWires();};
+}
+function deleteNode(id){
+  Object.values(edges).filter(e=>e.from===id||e.to===id).forEach(e=>delete edges[e.id]);
+  document.getElementById(id)?.remove(); delete nodes[id];
+  selected=null;selKind=null;renderInspector();drawWires();
+}
+
+// ============================================================
+//  SOLVER  (sequential modular + recycle iteration)
+// ============================================================
+function emptyStream(){return {comp:Object.fromEntries(COMP_LIST.map(c=>[c,0])),T:25,P:1,phase:'Liquid'};}
+function streamTotals(st){
+  let flow=0,mass=0;
+  for(const c of COMP_LIST){flow+=st.comp[c];mass+=st.comp[c]*COMPONENTS[c].MW;}
+  st.flow=flow; st.massFlow=mass; // kmol/h, kg/h (MW g/mol == kg/kmol)
+  st.H=enthalpy(st);
+  return st;
+}
+// reference: 25°C liquid = 0. Returns enthalpy in kJ/h.
+function enthalpy(st){
+  let H=0; // J/h
+  for(const c of COMP_LIST){
+    const n=st.comp[c]*1000; if(n<=0)continue; const p=COMPONENTS[c]; // n in mol/h
+    if(st.phase==='Vapor') H += n*( p.CpL*(p.Tb-25)+p.Hvap+p.CpV*(st.T-p.Tb) );
+    else                   H += n*( p.CpL*(st.T-25) );
+  }
+  return H/1000; // kJ/h
+}
+
+function solve(){
+  Object.values(edges).forEach(e=>e.solved=null);
+  const nList=Object.values(nodes);
+  if(nList.length===0){status('Nothing to solve',true);return;}
+
+  const outE=id=>Object.values(edges).filter(e=>e.from===id);
+  const inE =id=>Object.values(edges).filter(e=>e.to===id);
+
+  const order=topoOrder();
+  const hasRecycle=order.recycle;
+  const maxIter=hasRecycle?200:1;
+
+  const hist={};               // eid -> {xPrev, gPrev} for Wegstein
+  let iter=0, converged=false;
+
+  for(iter=0;iter<maxIter;iter++){
+    for(const eid of order.tears){ if(!edges[eid].solved) edges[eid].solved=streamTotals(emptyStream()); }
+    // guess fed into this pass = current tear-stream compositions
+    const guess={};
+    for(const eid of order.tears) guess[eid]=COMP_LIST.map(c=>edges[eid].solved.comp[c]);
+
+    for(const id of order.seq){
+      const n=nodes[id]; if(!n)continue;
+      const ins=inE(id).map(e=>e.solved).filter(Boolean);
+      const outs=outE(id);
+      try{ solveUnit(n,ins,outs); }catch(err){ status('Error at '+n.name+': '+err.message,true); return; }
+    }
+
+    if(!hasRecycle){converged=true;break;}
+
+    // tear streams have been recomputed by their producing block = g(guess)
+    let err=0;
+    for(const eid of order.tears){
+      const g=COMP_LIST.map(c=>edges[eid].solved.comp[c]);
+      const x=guess[eid];
+      for(let i=0;i<g.length;i++)err+=Math.abs(g[i]-x[i]);
+      // Wegstein acceleration component-wise
+      const h=hist[eid]; let xNew;
+      if(h){
+        xNew=g.map((gi,i)=>{
+          const dG=gi-h.gPrev[i], dX=x[i]-h.xPrev[i];
+          let q=0;
+          if(Math.abs(dX)>1e-12){const sl=dG/dX; q=sl/(sl-1);}
+          q=Math.max(-5,Math.min(0.9,q));   // stability bounds
+          return q*x[i]+(1-q)*gi;
+        });
+      } else { xNew=g.slice(); }
+      hist[eid]={xPrev:x.slice(), gPrev:g.slice()};
+      const st=emptyStream();
+      COMP_LIST.forEach((c,i)=>st.comp[c]=Math.max(0,xNew[i]));
+      st.T=edges[eid].solved.T; st.P=edges[eid].solved.P; st.phase=edges[eid].solved.phase;
+      edges[eid].solved=streamTotals(st);
+    }
+    if(err<1e-6){converged=true;break;}
+  }
+
+  // final clean pass so all downstream streams reflect converged tears exactly
+  if(hasRecycle&&converged){
+    for(const id of order.seq){
+      const n=nodes[id]; if(!n)continue;
+      const ins=inE(id).map(e=>e.solved).filter(Boolean);
+      try{ solveUnit(n,ins,outE(id)); }catch(err){}
+    }
+  }
+
+  buildStreamTable();
+  drawWires();
+  const tname={nrtl:'NRTL',pr:'Peng-Robinson',ideal:'Ideal'}[THERMO];
+  const msg=hasRecycle
+    ? (converged?`Solved · ${tname} · ${order.tears.length} recycle tear(s) converged in ${iter+1} iterations`
+                :`Stopped · ${tname} · recycle not converged in ${maxIter} iters (try a lower recycle ratio)`)
+    : `Solved · ${tname} · ${order.seq.length} blocks, sequential pass`;
+  status(msg, !converged);
+  openDrawer();
+}
+
+// Topological order with minimal tear selection. Kahn peels acyclic nodes;
+// remaining nodes are in cycles. DFS finds true back-edges (edges to a node on
+// the current DFS stack) and tears only those, sequencing the rest sensibly.
+function topoOrder(){
+  const ids=Object.keys(nodes);
+  const inE =id=>Object.values(edges).filter(e=>e.to===id);
+  const outE=id=>Object.values(edges).filter(e=>e.from===id);
+  const indeg={}; ids.forEach(id=>indeg[id]=inE(id).length);
+  const q=ids.filter(id=>indeg[id]===0);
+  const seq=[]; const seen=new Set();
+  while(q.length){const id=q.shift();seq.push(id);seen.add(id);
+    outE(id).forEach(e=>{indeg[e.to]--;if(indeg[e.to]===0)q.push(e.to);});}
+  const remaining=ids.filter(id=>!seen.has(id));
+  let tears=[];
+  if(remaining.length){
+    const set=new Set(remaining);
+    const onStack=new Set(), visited=new Set(), finish=[];
+    const dfs=id=>{
+      visited.add(id); onStack.add(id);
+      for(const e of outE(id)){
+        if(!set.has(e.to))continue;
+        if(onStack.has(e.to)){ if(!tears.includes(e.id))tears.push(e.id); }
+        else if(!visited.has(e.to)) dfs(e.to);
+      }
+      onStack.delete(id); finish.push(id);
+    };
+    for(const id of remaining) if(!visited.has(id)) dfs(id);
+    finish.reverse().forEach(id=>seq.push(id)); // sources-first within cycle
+  }
+  return {seq, tears, recycle:remaining.length>0};
+}
+
+function solveUnit(n,ins,outs){
+  const s=n.spec;
+  // set the output stream leaving a specific named port (by port id)
+  const put=(portId,st)=>{const e=outs.find(o=>o.fromPort===portId); if(e)e.solved=streamTotals(st);};
+  switch(n.type){
+    case 'feed':{
+      const st=emptyStream(); st.T=s.T;st.P=s.P;
+      for(const c of COMP_LIST)st.comp[c]=s.comp[c];
+      st.phase=phaseOf(st); put('out',st);
+      break;
+    }
+    case 'product': break;
+    case 'mixer':{
+      const st=emptyStream(); let Hsum=0;
+      for(const i of ins){for(const c of COMP_LIST)st.comp[c]+=i.comp[c]; Hsum+=i.H;}
+      st.P=ins.length?Math.min(...ins.map(i=>i.P)):1;
+      st.phase='Liquid'; st.T=solveTfromH(st,Hsum);
+      st.phase=phaseOf(st);
+      put('out',st);
+      break;
+    }
+    case 'splitter':{
+      const f=ins[0]||emptyStream();
+      const a=emptyStream(),b=emptyStream();
+      a.T=b.T=f.T;a.P=b.P=f.P;a.phase=b.phase=f.phase;
+      for(const c of COMP_LIST){a.comp[c]=f.comp[c]*s.frac;b.comp[c]=f.comp[c]*(1-s.frac);}
+      put('out1',a); put('out2',b);
+      break;
+    }
+    case 'heater':{
+      const f=ins[0]||emptyStream(); const st=emptyStream();
+      for(const c of COMP_LIST)st.comp[c]=f.comp[c]; st.P=f.P;
+      if(s.mode==='T'){ st.T=s.T; st.phase=phaseOf(st);
+        streamTotals(st); n._duty=(st.H-f.H)/3600; }
+      else { const Q=s.duty*3600;
+        st.phase=f.phase; st.T=solveTfromH(st,f.H+Q); st.phase=phaseOf(st); n._duty=s.duty; }
+      put('out',st);
+      break;
+    }
+    case 'heatex':{
+      // Identify which inlet connects to hot_in vs cold_in by port name
+      const inEdges=Object.values(edges).filter(e=>e.to===n.id&&e.solved);
+      const hotEdge=inEdges.find(e=>e.toPort==='hot_in');
+      const coldEdge=inEdges.find(e=>e.toPort==='cold_in');
+      const hot=(hotEdge&&hotEdge.solved)||emptyStream();
+      const cold=(coldEdge&&coldEdge.solved)||emptyStream();
+      const hotOut=emptyStream(), coldOut=emptyStream();
+      for(const c of COMP_LIST){hotOut.comp[c]=hot.comp[c]; coldOut.comp[c]=cold.comp[c];}
+      hotOut.P=hot.P; coldOut.P=cold.P;
+      // Hot side: cool to specified outlet temperature
+      hotOut.T=s.T_hot_out; hotOut.phase=phaseOf(hotOut);
+      streamTotals(hotOut);
+      // Energy balance: Q released by hot = Q absorbed by cold
+      const Q=hot.H-hotOut.H; // kJ/h
+      n._duty=Q/3600;          // kW
+      const coldTot=COMP_LIST.reduce((a,c)=>a+cold.comp[c],0);
+      if(coldTot>0){
+        coldOut.phase=cold.phase;
+        coldOut.T=solveTfromH(coldOut,cold.H+Q);
+        coldOut.phase=phaseOf(coldOut);
+      } else { coldOut.T=cold.T; coldOut.phase=cold.phase; }
+      n._Tcold_out=coldOut.T;
+      put('hot_out',hotOut); put('cold_out',coldOut);
+      break;
+    }
+    case 'pump':{
+      const f=ins[0]||emptyStream(); const st=emptyStream();
+      for(const c of COMP_LIST)st.comp[c]=f.comp[c]; st.T=f.T;st.P=s.Pout;st.phase='Liquid';
+      n._work=Math.max(0,(s.Pout-f.P))*1e5*(f.massFlow/1000/1000)/3600/1000;
+      put('out',st);
+      break;
+    }
+    case 'compressor':{
+      const f=ins[0]||emptyStream(); const st=emptyStream();
+      for(const c of COMP_LIST)st.comp[c]=f.comp[c];
+      st.P=s.Pout; st.phase='Vapor';
+      const tot=COMP_LIST.reduce((a,c)=>a+f.comp[c],0);
+      if(tot>0&&f.P>0&&s.Pout>f.P){
+        const CpVavg=COMP_LIST.reduce((a,c)=>a+f.comp[c]*COMPONENTS[c].CpV,0)/tot;
+        const gamma=CpVavg/(CpVavg-R);
+        const Tin_K=f.T+273.15;
+        const Ts_K=Tin_K*Math.pow(s.Pout/f.P,(gamma-1)/gamma);
+        const eta=s.eta||0.75;
+        const dT=(Ts_K-Tin_K)/eta;
+        st.T=f.T+dT;
+        n._work=tot*CpVavg*dT/3.6;
+      } else {
+        st.T=f.T; n._work=0;
+      }
+      n._Tout=st.T;
+      streamTotals(st);
+      put('out',st);
+      break;
+    }
+    case 'valve':{
+      const f=ins[0]||emptyStream(); const st=emptyStream();
+      for(const c of COMP_LIST)st.comp[c]=f.comp[c];
+      st.P=s.Pout; st.phase=f.phase;
+      streamTotals(st);
+      st.T=solveTfromH(st,f.H);
+      st.phase=phaseOf(st);
+      streamTotals(st);
+      n._Tout=st.T;
+      put('out',st);
+      break;
+    }
+    case 'flash':{
+      const f=ins[0]||emptyStream();
+      const {vapor,liquid}=flashVLE(f,s.T,s.P);
+      put('vap',vapor); put('liq',liquid);
+      break;
+    }
+    case 'column':{
+      const f=ins[0]||emptyStream();
+      const N=Math.max(3,Math.round(s.N)), NF=Math.max(1,Math.min(N-2,Math.round(s.NF)));
+      const res=solveDistillation(f,N,NF,s.R,s.D,s.P);
+      n._colConverged=res.converged; n._Tprofile=res.Tprofile;
+      put('dist',res.dist); put('btms',res.bot);
+      // side draw (optional): if connected, draw a fraction of liquid at the
+      // feed-stage composition. Simple model: pull `sideFrac` of bottoms flow.
+      if(outs.some(o=>o.fromPort==='side')){
+        const sd=emptyStream(); const frac=s.sideFrac!=null?s.sideFrac:0.1;
+        for(const c of COMP_LIST)sd.comp[c]=res.bot.comp[c]*frac;
+        sd.T=(res.Tprofile[Math.floor(res.Tprofile.length/2)]||f.T); sd.P=s.P; sd.phase='Liquid';
+        // remove the side draw from bottoms to conserve mass
+        const bo=emptyStream(); for(const c of COMP_LIST)bo.comp[c]=res.bot.comp[c]*(1-frac);
+        bo.T=res.bot.T;bo.P=res.bot.P;bo.phase=res.bot.phase;
+        put('btms',bo); put('side',sd);
+      }
+      break;
+    }
+    case 'compsep':{
+      const f=ins[0]||emptyStream(); const top=emptyStream(),bot=emptyStream();
+      top.T=bot.T=f.T;top.P=bot.P=f.P;top.phase=bot.phase=f.phase;
+      for(const c of COMP_LIST){
+        if(c===s.target){top.comp[c]=f.comp[c]*s.recovery;bot.comp[c]=f.comp[c]*(1-s.recovery);}
+        else {top.comp[c]=f.comp[c]*(1-s.recovery);bot.comp[c]=f.comp[c]*s.recovery;}
+      }
+      put('top',top); put('bot',bot);
+      break;
+    }
+    case 'reactor':{
+      const f=ins[0]||emptyStream(); const st=emptyStream();
+      for(const c of COMP_LIST)st.comp[c]=f.comp[c];
+      const reacted=f.comp[s.key]*s.conv;
+      st.comp[s.key]-=reacted; st.comp[s.prod]=(st.comp[s.prod]||0)+reacted;
+      st.T=f.T;st.P=f.P;st.phase=phaseOf(st);
+      put('out',st);
+      break;
+    }
+  }
+}
+
+// Phase tag via bubble/dew check using the active property method.
+function phaseOf(st){
+  let tot=0; for(const c of COMP_LIST)tot+=st.comp[c]; if(tot<=0)return 'Liquid';
+  const z=COMP_LIST.map(c=>st.comp[c]/tot);
+  const Kb=kValues(z,z,st.T,st.P);
+  // bubble: sum(z*K) >=1 means above bubble (some vapor); dew: sum(z/K)>=1
+  let sK=0; COMP_LIST.forEach((c,i)=>sK+=z[i]*Kb[i]);
+  let sZK=0; COMP_LIST.forEach((c,i)=>sZK+=z[i]/Math.max(1e-9,Kb[i]));
+  if(sK<1) return 'Liquid';
+  if(sZK<1) return 'Vapor';
+  return 'Two-phase';
+}
+
+// Rigorous isothermal flash: Rachford-Rice with K-values iterated to
+// self-consistency (K depends on x,y through activity coeffs / fugacities).
+// --- Wilson correlation for initial K-value estimate (always non-trivial) ---
+// K_i = (Pc_i/P) * exp[5.373(1+w_i)(1 - Tc_i/T)]   (T,Tc in K; P,Pc same units)
+function wilsonK(T_c,P_bar){
+  const Tk=T_c+273.15, Ppa=P_bar*1e5;
+  return COMP_LIST.map(c=>{const p=COMPONENTS[c];
+    return (p.Pc/Ppa)*Math.exp(5.373*(1+p.w)*(1-p.Tc/Tk));});
+}
+
+function flashVLE(f,T,P){
+  const tot=f.flow||COMP_LIST.reduce((a,c)=>a+f.comp[c],0);
+  const vapor=emptyStream(),liquid=emptyStream();
+  vapor.T=liquid.T=T;vapor.P=liquid.P=P;vapor.phase='Vapor';liquid.phase='Liquid';
+  if(tot<=0){return {vapor,liquid,V:0};}
+  const z=COMP_LIST.map(c=>f.comp[c]/tot);
+  // Initialize K from Wilson correlation (avoids the trivial K=1 PR root)
+  let K=wilsonK(T,P);
+  let x=z.slice(), y=z.slice(), V=0.5;
+  for(let outer=0;outer<60;outer++){
+    // Rachford-Rice for V given current K
+    const rr=v=>{let s=0;for(let i=0;i<COMP_LIST.length;i++){if(z[i]<=0)continue;s+=z[i]*(K[i]-1)/(1+v*(K[i]-1));}return s;};
+    if(rr(1e-9)<0){V=0;} else if(rr(1-1e-9)>0){V=1;} else {
+      let lo=0,hi=1;for(let i=0;i<80;i++){V=(lo+hi)/2;const v=rr(V);if(Math.abs(v)<1e-10)break;if(v>0)lo=V;else hi=V;}
+    }
+    const xn=[],yn=[];let sx=0,sy=0;
+    for(let i=0;i<COMP_LIST.length;i++){const xi=z[i]/(1+V*(K[i]-1));xn[i]=xi;yn[i]=K[i]*xi;sx+=xi;sy+=yn[i];}
+    for(let i=0;i<COMP_LIST.length;i++){xn[i]/=sx||1;yn[i]/=sy||1;}
+    // refine K with the active property method using distinct x,y phases
+    const Kn=kValues(xn,yn,T,P);
+    let dK=0;for(let i=0;i<COMP_LIST.length;i++)dK+=Math.abs(Math.log(Math.max(1e-12,Kn[i]/Math.max(1e-12,K[i]))));
+    x=xn;y=yn;K=Kn;
+    if(dK<1e-8)break;
+  }
+  for(let i=0;i<COMP_LIST.length;i++){
+    liquid.comp[COMP_LIST[i]]=x[i]*tot*(1-V);
+    vapor.comp[COMP_LIST[i]]=y[i]*tot*V;
+  }
+  return {vapor,liquid,V};
+}
+
+// Bubble-point temperature of a liquid of composition z at P[bar].
+function bubbleT(z,P,Tguess){
+  let T=Tguess||80;
+  for(let it=0;it<60;it++){
+    const K=kValues(z,z,T,P);
+    let f=-1;for(let i=0;i<COMP_LIST.length;i++)f+=z[i]*K[i];
+    const dT=0.05,K2=kValues(z,z,T+dT,P);
+    let f2=-1;for(let i=0;i<COMP_LIST.length;i++)f2+=z[i]*K2[i];
+    const df=(f2-f)/dT; if(Math.abs(df)<1e-12)break;
+    const step=f/df; T-=Math.max(-25,Math.min(25,step));
+    if(Math.abs(f)<1e-7)break;
+  }
+  return T;
+}
+
+// Tridiagonal solver (Thomas algorithm)
+function thomas(a,b,c,d,n){
+  const cp=new Array(n),dp=new Array(n);
+  cp[0]=c[0]/b[0];dp[0]=d[0]/b[0];
+  for(let i=1;i<n;i++){const m=b[i]-a[i]*cp[i-1];cp[i]=c[i]/m;dp[i]=(d[i]-a[i]*dp[i-1])/m;}
+  const x=new Array(n);x[n-1]=dp[n-1];
+  for(let i=n-2;i>=0;i--)x[i]=dp[i]-cp[i]*x[i+1];
+  return x;
+}
+
+// Rigorous multistage distillation via MESH equations, bubble-point method.
+// Stage 0 = condenser/top, stage N-1 = reboiler/bottom. Total condenser.
+// Returns {dist, bot, Tprofile, converged}. Uses active property method for K.
+function solveDistillation(feed,N,NF,R,D,P){
+  const Fz=feed.flow||COMP_LIST.reduce((a,c)=>a+feed.comp[c],0);
+  const distStream=emptyStream(), botStream=emptyStream();
+  if(Fz<=0)return {dist:distStream,bot:botStream,Tprofile:[],converged:false};
+  D=Math.max(1e-6,Math.min(D,Fz-1e-6));
+  const z=COMP_LIST.map(c=>feed.comp[c]/Fz);
+  const nc=COMP_LIST.length, B=Fz-D;
+  // initial guesses
+  const Tbub=bubbleT(z,P,90);
+  let T=Array.from({length:N},(_,i)=>Tbub-8+ (i/(N-1))*30);
+  const L=new Array(N), Vv=new Array(N);
+  for(let j=0;j<N;j++){ // constant molar overflow init
+    if(j<NF){L[j]=R*D; Vv[j]=D*(R+1);}
+    else    {L[j]=R*D+Fz; Vv[j]=D*(R+1);}
+  }
+  let x=COMP_LIST.map(()=>new Array(N).fill(0));
+  let converged=false;
+  for(let outer=0;outer<80;outer++){
+    for(let ci=0;ci<nc;ci++){
+      const a=new Array(N),b=new Array(N),c=new Array(N),d=new Array(N);
+      const K=T.map((t,j)=>{const xj=x.map(r=>r[j]);const s=xj.reduce((p,q)=>p+q,0)||1;
+        return kValues(xj.map(v=>v/s),xj.map(v=>v/s),t,P)[ci];});
+      for(let j=0;j<N;j++){
+        a[j]=(j>0)?L[j-1]:0;
+        b[j]=-(L[j]+Vv[j]*K[j]);
+        c[j]=(j<N-1)?Vv[j+1]*K[j+1]:0;
+        d[j]=(j===NF)?-Fz*z[ci]:0;
+      }
+      const xj=thomas(a,b,c,d,N);
+      for(let j=0;j<N;j++)x[ci][j]=Math.max(0,xj[j]);
+    }
+    // normalize and update T by bubble point on each stage
+    let maxdT=0;
+    for(let j=0;j<N;j++){
+      let s=0;for(let ci=0;ci<nc;ci++)s+=x[ci][j];
+      if(s>0)for(let ci=0;ci<nc;ci++)x[ci][j]/=s;
+      const zj=COMP_LIST.map((c,ci)=>x[ci][j]);
+      const tn=bubbleT(zj,P,T[j]); maxdT=Math.max(maxdT,Math.abs(tn-T[j])); T[j]=tn;
+    }
+    if(maxdT<1e-3){converged=true;break;}
+  }
+  // distillate = condenser liquid comp (total condenser: y_top = x_dist)
+  for(let ci=0;ci<nc;ci++){
+    distStream.comp[COMP_LIST[ci]]=x[ci][0]*D;
+    botStream.comp[COMP_LIST[ci]]=x[ci][N-1]*B;
+  }
+  distStream.T=T[0];distStream.P=P;distStream.phase='Liquid';
+  botStream.T=T[N-1];botStream.P=P;botStream.phase='Liquid';
+  return {dist:distStream,bot:botStream,Tprofile:T,converged};
+}
+
+// invert enthalpy for T (single phase sensible)
+function solveTfromH(st,Htarget){
+  let lo=-50,hi=400,T;
+  for(let i=0;i<60;i++){T=(lo+hi)/2;st.T=T;const H=enthalpy(st);if(H<Htarget)lo=T;else hi=T;}
+  return T;
+}
+
+// ============================================================
+//  STREAM TABLE
+// ============================================================
+function buildStreamTable(){
+  const es=Object.values(edges).filter(e=>e.solved);
+  const inner=document.getElementById('drawerInner');
+  if(!es.length){inner.innerHTML='<h4>Stream Table</h4><div style="color:#9fb3aa;font-family:var(--mono);font-size:12px">No solved streams. Connect blocks and Solve.</div>';return;}
+  let rows=[['Stream'],['From'],['To'],['Phase'],['T (°C)'],['P (bar)'],['Total (kmol/h)'],['Mass (kg/h)']];
+  COMP_LIST.forEach(c=>rows.push([c+' (kmol/h)']));
+  es.forEach(e=>{const s=e.solved;
+    rows[0].push(e.name);rows[1].push(nodes[e.from].name);rows[2].push(nodes[e.to].name);
+    rows[3].push(s.phase);rows[4].push(s.T.toFixed(1));rows[5].push(s.P.toFixed(2));
+    rows[6].push(s.flow.toFixed(2));rows[7].push(s.massFlow.toFixed(1));
+    COMP_LIST.forEach((c,i)=>rows[8+i].push(s.comp[c]>1e-4?s.comp[c].toFixed(3):'—'));
+  });
+  // strip all-zero component rows
+  const keep=rows.filter((r,i)=>i<8 || r.slice(1).some(v=>v!=='—'));
+  let html='<h4>Stream Table</h4><table class="streams">';
+  keep.forEach((r,i)=>{html+='<tr>';r.forEach((c,j)=>{html+=(i===0||j===0)?`<th>${c}</th>`:`<td>${c}</td>`;});html+='</tr>';});
+  html+='</table>';
+  inner.innerHTML=html;
+}
+
+// ============================================================
+//  UI plumbing
+// ============================================================
+const drawer=document.getElementById('drawer');
+document.getElementById('drawerTab').onclick=()=>drawer.classList.toggle('open');
+function openDrawer(){drawer.classList.add('open');document.getElementById('drawerTab').textContent='Stream Table ▾';}
+function status(msg,err){const s=document.getElementById('status');s.textContent=msg;s.className='status-bar'+(err?' err':' ok');}
+let toastT;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2200);}
+
+document.getElementById('btnRun').onclick=solve;
+document.getElementById('btnUndo').onclick=undo;
+document.getElementById('btnRedo').onclick=redo;
+document.getElementById('thermoSel').onchange=e=>{THERMO=e.target.value;status('Property method: '+e.target.options[e.target.selectedIndex].text+' · press Solve to re-run');};
+document.getElementById('routeSel').onchange=e=>{
+  ROUTE=e.target.value;
+  // waypoint semantics differ between modes; clear so routes stay clean
+  Object.values(edges).forEach(ed=>{ed.waypoints=[];});
+  drawWires();
+  status('Routing: '+e.target.options[e.target.selectedIndex].text);
+};
+
+// raw clear (no history) used internally by examples
+function clearAll(){
+  nodes={};edges={};nid=eid=0;selected=null;selKind=null;disarm();
+  canvas.innerHTML='';drawWires();renderInspector();
+  document.getElementById('drawerInner').innerHTML='';drawer.classList.remove('open');
+}
+document.getElementById('btnClear').onclick=()=>{
+  if(Object.keys(nodes).length||Object.keys(edges).length)pushHistory();
+  clearAll();
+  status('Cleared');
+};
+
+// ---------- example: feed → preheat → distillation column → products ----------
+document.getElementById('btnSample').onclick=()=>{
+  pushHistory();
+  clearAll();
+  addNode('feed',40,170);
+  addNode('heater',180,170);
+  addNode('column',330,110);
+  addNode('product',470,40);
+  addNode('product',470,290);
+  const ids=Object.keys(nodes);
+  const feed=nodes[ids[0]]; feed.name='Feed';
+  COMP_LIST.forEach(c=>feed.spec.comp[c]=0);
+  feed.spec.comp.Benzene=50;feed.spec.comp.Toluene=50;feed.spec.T=25;feed.spec.P=1;
+  const ht=nodes[ids[1]];ht.name='Preheater';ht.spec.mode='T';ht.spec.T=95;
+  const col=nodes[ids[2]];col.name='Column';col.spec.N=15;col.spec.NF=8;col.spec.R=2.0;col.spec.D=50;col.spec.P=1;
+  nodes[ids[3]].name='Distillate';nodes[ids[4]].name='Bottoms';
+  addEdge(ids[0],'out',ids[1],'in');
+  addEdge(ids[1],'out',ids[2],'feed');
+  addEdge(ids[2],'dist',ids[3],'in');   // top -> distillate
+  addEdge(ids[2],'btms',ids[4],'in');   // bottom -> bottoms
+  Object.values(edges).forEach((e,i)=>e.name='S'+(i+1));
+  selected=null;renderInspector();drawWires();updateUndoButtons();
+  status('Example loaded · benzene/toluene distillation · distillate leaves the top, bottoms the base · press Solve');
+};
+
+// ---------- recycle example: feed → mixer → reactor → splitter (purge + recycle) ----------
+document.getElementById('btnRecycle').onclick=()=>{
+  pushHistory();
+  clearAll();
+  addNode('feed',30,120);
+  addNode('mixer',180,120);
+  addNode('reactor',330,120);
+  addNode('splitter',490,120);
+  addNode('product',650,80);
+  const ids=Object.keys(nodes);
+  const feed=nodes[ids[0]]; feed.name='Feed';
+  COMP_LIST.forEach(c=>feed.spec.comp[c]=0);
+  feed.spec.comp.nHexane=100; feed.spec.T=25; feed.spec.P=5;
+  nodes[ids[1]].name='Mixer';
+  const rx=nodes[ids[2]];rx.name='Reactor';rx.spec.key='nHexane';rx.spec.conv=0.35;rx.spec.prod='Benzene';
+  const sp=nodes[ids[3]];sp.name='Splitter';sp.spec.frac=0.30;
+  nodes[ids[4]].name='Product';
+  addEdge(ids[0],'out',ids[1],'in1');     // feed -> mixer inlet 1
+  addEdge(ids[1],'out',ids[2],'in');      // mixer -> reactor
+  addEdge(ids[2],'out',ids[3],'in');      // reactor -> splitter
+  addEdge(ids[3],'out1',ids[4],'in');     // splitter -> product
+  addEdge(ids[3],'out2',ids[1],'in2');    // splitter -> mixer inlet 2 (RECYCLE)
+  const recyc=Object.values(edges).find(e=>e.from===ids[3]&&e.to===ids[1]);
+  if(recyc){recyc.name='Recycle';
+    recyc.waypoints=[{x:545,y:250},{x:215,y:250}];}
+  Object.values(edges).forEach((e,i)=>{if(e.name[0]==='S')e.name='S'+(i+1);});
+  selected=null;renderInspector();drawWires();updateUndoButtons();
+  status('Recycle example loaded · reactor loop with 70% recycle · press Solve to converge the tear');
+};
+
+buildPalette();
+updateUndoButtons();
+status('Idle · click a palette block then click the canvas to place it · drag a block\'s blue dot to connect');
+</script>
+</body>
+</html>
